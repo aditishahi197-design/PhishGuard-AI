@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+backend/.venv/
+backend/phishguard.db
+backend/reports/*.pdf
+backend/model/*.joblib
+backend/model/model_metadata.json
+backend/.env

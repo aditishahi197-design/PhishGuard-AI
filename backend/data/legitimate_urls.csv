@@ -1,0 +1,178 @@
+url,domain,name,category
+https://microsoft.com,microsoft.com,Microsoft,Technology
+https://office.com,office.com,Microsoft Office,Productivity
+https://outlook.com,outlook.com,Microsoft Outlook,Email
+https://live.com,live.com,Microsoft Live,Microsoft
+https://windows.com,windows.com,Microsoft Windows,Technology
+https://azure.com,azure.com,Microsoft Azure,Cloud
+https://google.com,google.com,Google,Technology
+https://youtube.com,youtube.com,YouTube,Media
+https://apple.com,apple.com,Apple,Technology
+https://icloud.com,icloud.com,iCloud,Cloud
+https://amazon.com,amazon.com,Amazon,Commerce
+https://github.com,github.com,GitHub,Developer
+https://gitlab.com,gitlab.com,GitLab,Developer
+https://stackoverflow.com,stackoverflow.com,Stack Overflow,Developer
+https://npmjs.com,npmjs.com,npm,Developer
+https://pypi.org,pypi.org,Python Package Index,Developer
+https://python.org,python.org,Python,Developer
+https://nodejs.org,nodejs.org,Node.js,Developer
+https://mozilla.org,mozilla.org,Mozilla,Technology
+https://adobe.com,adobe.com,Adobe,Technology
+https://dropbox.com,dropbox.com,Dropbox,Cloud
+https://zoom.us,zoom.us,Zoom,Communication
+https://linkedin.com,linkedin.com,LinkedIn,Professional
+https://reddit.com,reddit.com,Reddit,Community
+https://wikipedia.org,wikipedia.org,Wikipedia,Knowledge
+https://paypal.com,paypal.com,PayPal,Payments
+https://stripe.com,stripe.com,Stripe,Payments
+https://cloudflare.com,cloudflare.com,Cloudflare,Infrastructure
+https://cisco.com,cisco.com,Cisco,Technology
+https://ibm.com,ibm.com,IBM,Technology
+https://oracle.com,oracle.com,Oracle,Technology
+https://intel.com,intel.com,Intel,Technology
+https://salesforce.com,salesforce.com,Salesforce,Business
+https://slack.com,slack.com,Slack,Communication
+https://notion.so,notion.so,Notion,Productivity
+https://canva.com,canva.com,Canva,Design
+https://openai.com,openai.com,OpenAI,AI
+https://chatgpt.com,chatgpt.com,ChatGPT,AI
+https://web.whatsapp.com,web.whatsapp.com,WhatsApp Web,Communication
+https://whatsapp.com,whatsapp.com,WhatsApp,Communication
+https://discord.com,discord.com,Discord,Communication
+https://telegram.org,telegram.org,Telegram,Communication
+https://signal.org,signal.org,Signal,Communication
+https://skype.com,skype.com,Skype,Communication
+https://teams.microsoft.com,teams.microsoft.com,Microsoft Teams,Communication
+https://meet.google.com,meet.google.com,Google Meet,Communication
+https://facebook.com,facebook.com,Facebook,Social
+https://instagram.com,instagram.com,Instagram,Social
+https://x.com,x.com,X,Social
+https://twitter.com,twitter.com,Twitter,Social
+https://tiktok.com,tiktok.com,TikTok,Social
+https://pinterest.com,pinterest.com,Pinterest,Social
+https://snapchat.com,snapchat.com,Snapchat,Social
+https://threads.net,threads.net,Threads,Social
+https://mastodon.social,mastodon.social,Mastodon,Social
+https://netflix.com,netflix.com,Netflix,Media
+https://spotify.com,spotify.com,Spotify,Media
+https://twitch.tv,twitch.tv,Twitch,Media
+https://primevideo.com,primevideo.com,Prime Video,Media
+https://hulu.com,hulu.com,Hulu,Media
+https://disneyplus.com,disneyplus.com,Disney+,Media
+https://imdb.com,imdb.com,IMDb,Media
+https://ebay.com,ebay.com,eBay,Commerce
+https://walmart.com,walmart.com,Walmart,Commerce
+https://target.com,target.com,Target,Commerce
+https://bestbuy.com,bestbuy.com,Best Buy,Commerce
+https://etsy.com,etsy.com,Etsy,Commerce
+https://shopify.com,shopify.com,Shopify,Commerce
+https://flipkart.com,flipkart.com,Flipkart,Commerce
+https://myntra.com,myntra.com,Myntra,Commerce
+https://ajio.com,ajio.com,AJIO,Commerce
+https://meesho.com,meesho.com,Meesho,Commerce
+https://ikea.com,ikea.com,IKEA,Commerce
+https://booking.com,booking.com,Booking.com,Travel
+https://airbnb.com,airbnb.com,Airbnb,Travel
+https://expedia.com,expedia.com,Expedia,Travel
+https://tripadvisor.com,tripadvisor.com,Tripadvisor,Travel
+https://uber.com,uber.com,Uber,Transport
+https://lyft.com,lyft.com,Lyft,Transport
+https://cloud.microsoft,cloud.microsoft,Microsoft Cloud,Productivity
+https://microsoft365.com,microsoft365.com,Microsoft 365,Productivity
+https://sharepoint.com,sharepoint.com,SharePoint,Productivity
+https://onedrive.com,onedrive.com,OneDrive,Cloud
+https://bing.com,bing.com,Bing,Search
+https://duckduckgo.com,duckduckgo.com,DuckDuckGo,Search
+https://yahoo.com,yahoo.com,Yahoo,Search
+https://baidu.com,baidu.com,Baidu,Search
+https://yandex.com,yandex.com,Yandex,Search
+https://gmail.com,gmail.com,Gmail,Email
+https://proton.me,proton.me,Proton,Email
+https://protonmail.com,protonmail.com,Proton Mail,Email
+https://fastmail.com,fastmail.com,Fastmail,Email
+https://me.com,me.com,Apple iCloud,Cloud
+https://appleid.apple.com,appleid.apple.com,Apple ID,Identity
+https://appstore.com,appstore.com,Apple App Store,Commerce
+https://developer.apple.com,developer.apple.com,Apple Developer,Developer
+https://googleapis.com,googleapis.com,Google APIs,Technology
+https://gstatic.com,gstatic.com,Google Static,Technology
+https://android.com,android.com,Android,Technology
+https://firebase.google.com,firebase.google.com,Firebase,Developer
+https://developers.google.com,developers.google.com,Google Developers,Developer
+https://colab.research.google.com,colab.research.google.com,Google Colab,Education
+https://bitbucket.org,bitbucket.org,Bitbucket,Developer
+https://sourceforge.net,sourceforge.net,SourceForge,Developer
+https://codeberg.org,codeberg.org,Codeberg,Developer
+https://pythonhosted.org,pythonhosted.org,Python Hosting,Developer
+https://deno.com,deno.com,Deno,Developer
+https://rust-lang.org,rust-lang.org,Rust,Developer
+https://golang.org,golang.org,Go,Developer
+https://kotlinlang.org,kotlinlang.org,Kotlin,Developer
+https://java.com,java.com,Java,Developer
+https://mozilla.com,mozilla.com,Mozilla,Technology
+https://ubuntu.com,ubuntu.com,Ubuntu,Technology
+https://debian.org,debian.org,Debian,Technology
+https://redhat.com,redhat.com,Red Hat,Technology
+https://canonical.com,canonical.com,Canonical,Technology
+https://docker.com,docker.com,Docker,Developer
+https://kubernetes.io,kubernetes.io,Kubernetes,Developer
+https://vercel.com,vercel.com,Vercel,Developer
+https://netlify.com,netlify.com,Netlify,Developer
+https://heroku.com,heroku.com,Heroku,Developer
+https://aws.amazon.com,aws.amazon.com,AWS,Cloud
+https://amazonaws.com,amazonaws.com,Amazon Web Services,Cloud
+https://cloud.google.com,cloud.google.com,Google Cloud,Cloud
+https://cloud.googleusercontent.com,cloud.googleusercontent.com,Google Cloud,Cloud
+https://atlassian.com,atlassian.com,Atlassian,Business
+https://jira.com,jira.com,Jira,Business
+https://trello.com,trello.com,Trello,Productivity
+https://asana.com,asana.com,Asana,Productivity
+https://box.com,box.com,Box,Cloud
+https://evernote.com,evernote.com,Evernote,Productivity
+https://figma.com,figma.com,Figma,Design
+https://behance.net,behance.net,Behance,Design
+https://wise.com,wise.com,Wise,Payments
+https://venmo.com,venmo.com,Venmo,Payments
+https://cash.app,cash.app,Cash App,Payments
+https://squareup.com,squareup.com,Square,Payments
+https://coinbase.com,coinbase.com,Coinbase,Finance
+https://robinhood.com,robinhood.com,Robinhood,Finance
+https://sec.gov,sec.gov,U.S. SEC,Government
+https://irs.gov,irs.gov,U.S. IRS,Government
+https://usa.gov,usa.gov,USA.gov,Government
+https://whitehouse.gov,whitehouse.gov,The White House,Government
+https://rbi.org.in,rbi.org.in,Reserve Bank of India,Government
+https://sbi.co.in,sbi.co.in,State Bank of India,Banking
+https://onlinesbi.sbi,onlinesbi.sbi,State Bank of India Online,Banking
+https://hdfcbank.com,hdfcbank.com,HDFC Bank,Banking
+https://icicibank.com,icicibank.com,ICICI Bank,Banking
+https://axisbank.com,axisbank.com,Axis Bank,Banking
+https://kotak.com,kotak.com,Kotak Mahindra Bank,Banking
+https://bankofbaroda.in,bankofbaroda.in,Bank of Baroda,Banking
+https://canarabank.com,canarabank.com,Canara Bank,Banking
+https://unionbankofindia.co.in,unionbankofindia.co.in,Union Bank of India,Banking
+https://indusind.com,indusind.com,IndusInd Bank,Banking
+https://federalbank.co.in,federalbank.co.in,Federal Bank,Banking
+https://npci.org.in,npci.org.in,National Payments Corporation of India,Payments
+https://upi.npci.org.in,upi.npci.org.in,UPI NPCI,Payments
+https://uidai.gov.in,uidai.gov.in,UIDAI,Government
+https://digilocker.gov.in,digilocker.gov.in,DigiLocker,Government
+https://incometax.gov.in,incometax.gov.in,Income Tax Department,Government
+https://gst.gov.in,gst.gov.in,GST Portal,Government
+https://epfindia.gov.in,epfindia.gov.in,EPFO,Government
+https://irctc.co.in,irctc.co.in,IRCTC,Travel
+https://irctc.gov.in,irctc.gov.in,IRCTC,Government
+https://passportindia.gov.in,passportindia.gov.in,Passport Seva,Government
+https://india.gov.in,india.gov.in,National Portal of India,Government
+https://mygov.in,mygov.in,MyGov India,Government
+https://ncert.nic.in,ncert.nic.in,NCERT,Education
+https://ugc.gov.in,ugc.gov.in,UGC,Education
+https://swayam.gov.in,swayam.gov.in,SWAYAM,Education
+https://coursera.org,coursera.org,Coursera,Education
+https://edx.org,edx.org,edX,Education
+https://khanacademy.org,khanacademy.org,Khan Academy,Education
+https://udemy.com,udemy.com,Udemy,Education
+https://archive.org,archive.org,Internet Archive,Knowledge
+https://medium.com,medium.com,Medium,Publishing
+https://substack.com,substack.com,Substack,Publishing

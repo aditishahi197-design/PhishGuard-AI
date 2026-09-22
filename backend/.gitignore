@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+phishguard.db
+reports/*.pdf
+model/*.joblib
+model/model_metadata.json
+

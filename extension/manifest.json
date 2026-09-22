@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "PhishGuard AI Prototype Guard",
+  "version": "2.0.0",
+  "description": "Prototype browser guard that sends the current page URL to a local PhishGuard AI backend and shows a block page for high-risk results.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1:5000/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html"}
+}
