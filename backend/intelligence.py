@@ -1,4 +1,5 @@
 import ipaddress
+import os
 import re
 import socket
 from urllib.parse import urlparse
@@ -89,3 +90,19 @@ def inspect_page(url, trusted_domain=None):
     }
 
 #future scope
+def virustotal_lookup(url):
+    """Optional VirusTotal URL lookup. Returns unavailable when no backend key is configured."""
+    api_key = os.getenv("VIRUSTOTAL_API_KEY", "").strip()
+    if not api_key:
+        return {"available": False, "status": "not configured", "malicious": 0, "suspicious": 0, "total": 0}
+    try:
+        import base64
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
+        r = requests.get(f"https://www.virustotal.com/api/v3/urls/{url_id}", headers={"x-apikey": api_key}, timeout=8)
+        if r.status_code == 404:
+            return {"available": True, "status": "not yet known to VirusTotal", "malicious": 0, "suspicious": 0, "total": 0}
+        r.raise_for_status()
+        stats = r.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+        return {"available": True, "status": "lookup complete", "malicious": int(stats.get("malicious", 0)), "suspicious": int(stats.get("suspicious", 0)), "total": int(sum(stats.values()))}
+    except Exception as exc:
+        return {"available": False, "status": f"lookup unavailable: {type(exc).__name__}", "malicious": 0, "suspicious": 0, "total": 0}

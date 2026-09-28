@@ -16,7 +16,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 
 from feature_extractor import FEATURE_ORDER, extract_features, normalize_url
 from risk_engine import heuristic_analysis, combine_scores, unknown_domain_risk, decision_for, is_trusted_host, critical_signal_keys
-from intelligence import inspect_page
+from intelligence import inspect_page, virustotal_lookup
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "phishing_model.joblib"
@@ -98,6 +98,7 @@ def init_db():
         reasons_json TEXT NOT NULL,
         features_json TEXT NOT NULL,
         trusted_match_json TEXT,
+        intelligence_json TEXT,
         page_analysis_json TEXT,
         confidence REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
@@ -115,16 +116,12 @@ def init_db():
     cols = {r[1] for r in conn.execute("PRAGMA table_info(analyses)").fetchall()}
     if "trusted_match_json" not in cols:
         conn.execute("ALTER TABLE analyses ADD COLUMN trusted_match_json TEXT")
+    if "intelligence_json" not in cols:
+        conn.execute("ALTER TABLE analyses ADD COLUMN intelligence_json TEXT")
     if "page_analysis_json" not in cols:
         conn.execute("ALTER TABLE analyses ADD COLUMN page_analysis_json TEXT")
     if "confidence" not in cols:
         conn.execute("ALTER TABLE analyses ADD COLUMN confidence REAL NOT NULL DEFAULT 0")
-    # Remove the legacy threat-data column from older databases.
-    if "intelligence_json" in cols:
-        try:
-            conn.execute("ALTER TABLE analyses DROP COLUMN intelligence_json")
-        except sqlite3.OperationalError:
-            pass
     conn.commit(); conn.close()
 
 
@@ -165,25 +162,26 @@ def analyze(url):
     trusted_registry = load_legitimate_registry()
     trusted = is_trusted_host(host, trusted_registry, require_dns_for_implicit_subdomain=True)
     page = inspect_page(normalized, trusted_domain=trusted)
+    intel = virustotal_lookup(normalized)
     live_score = sum(int(x.get("points", 0)) for x in page.get("signals", []))
+    intel_score = min(40, int(intel.get("malicious", 0)) * 12 + int(intel.get("suspicious", 0)) * 4)
     raw_risk = combine_scores(mp, hp["score"])
     clean_page = bool(page.get("available") and not page.get("signals"))
     brand_score = int(hp.get("brand_impersonation", {}).get("score", 0))
     if trusted:
-        enriched_risk = round(min(100.0, raw_risk * 0.22 + live_score * 0.78), 2)
+        enriched_risk = round(min(100.0, raw_risk * 0.18 + live_score * 0.35 + intel_score * 0.55), 2)
     else:
-        enriched_risk = unknown_domain_risk(mp, hp["score"], live_score, clean_page=clean_page, brand_score=brand_score)
+        enriched_risk = unknown_domain_risk(mp, hp["score"], live_score, intel_score, clean_page=clean_page, brand_score=brand_score)
 
     final_host = (urlparse(page.get("final_url", normalized)).hostname or "").lower().rstrip(".")
     final_trusted = is_trusted_host(final_host, trusted_registry, require_dns_for_implicit_subdomain=True) if final_host else trusted
     redirect_changed_host = bool(final_host and final_host != host)
     redirect_to_untrusted = bool(redirect_changed_host and trusted and not final_trusted)
 
-    critical_keys = critical_signal_keys(features, hp["signals"])
+    critical_keys = critical_signal_keys(features, hp["signals"], intel)
     critical_signal = bool(critical_keys or redirect_to_untrusted)
-    known_fixture = (host == "testsafebrowsing.appspot.com" and (parsed.path or "").lower() in {"/s/phishing.html", "/s/unwanted.html"})
     force_block = bool(
-        known_fixture
+        int(intel.get("malicious", 0)) >= 2
         or (features.get("has_ip") and features.get("suspicious_words", 0) >= 1)
         or (features.get("has_ip") and features.get("has_at"))
         or (features.get("has_at") and features.get("suspicious_words", 0) >= 1)
@@ -204,17 +202,17 @@ def analyze(url):
         decision, label = decision_for(enriched_risk, max(hp["score"], live_score), trusted=None, critical_signal=critical_signal, force_block=force_block)
         risk = enriched_risk
         reasons = hp["signals"][:] + page.get("signals", [])[:]
-        if known_fixture:
-            reasons.append({"key": "security-test-fixture", "points": 100, "title": "Known security test fixture", "detail": "This URL is a documented Safe Browsing test destination used for controlled security testing; it is not treated as evidence about arbitrary real-world sites."})
         if redirect_to_untrusted:
             reasons.append({"key":"untrusted-redirect", "points":18, "title":"Redirect left the recognized domain", "detail":f"The page started on {host} but ended on {final_host}, which is not in the legitimate-domain registry."})
+        if intel.get("available") and intel.get("malicious", 0) > 0:
+            reasons.append({"key":"threat-intel", "points": intel_score, "title":"Threat-intelligence detections", "detail":f"VirusTotal reports {intel['malicious']} malicious and {intel.get('suspicious',0)} suspicious engine detections."})
         if force_block and not any(r.get("key") == "block-evidence" for r in reasons):
             reasons.append({"key":"block-evidence", "points":0, "title":"Multiple high-severity indicators combined", "detail":"The decision reached BLOCK because strong phishing indicators occurred together rather than from a single weak heuristic."})
-        assessment_source = "ML + heuristic + live page analysis"
+        assessment_source = "ML + heuristic + live page analysis + optional threat intelligence"
 
-    evidence_count = len(reasons) + (1 if page.get("available") else 0)
+    evidence_count = len(reasons) + (1 if page.get("available") else 0) + (1 if intel.get("available") else 0)
     confidence = round(min(99.0, 45 + evidence_count * 8 + (15 if trusted else 0)), 1)
-    if not page.get("available"):
+    if not page.get("available") and not intel.get("available"):
         confidence = min(confidence, 65.0)
 
     if not reasons:
@@ -227,7 +225,7 @@ def analyze(url):
         "raw_risk_score": raw_risk, "live_signal_score": live_score, "risk_score": risk,
         "decision": decision, "label": label, "trusted_domain": trusted,
         "assessment_source": assessment_source, "confidence": confidence,
-        "reasons": reasons, "features": features, "page_analysis": page,
+        "reasons": reasons, "features": features, "page_analysis": page, "intelligence": intel,
     }
 
 
@@ -251,8 +249,8 @@ def api_analyze():
         return jsonify({"error": str(exc)}), 400
     created = datetime.now(timezone.utc).isoformat()
     conn = db()
-    cur = conn.execute("""INSERT INTO analyses(url, normalized_url, model_probability, heuristic_score, risk_score, decision, label, reasons_json, features_json, trusted_match_json, page_analysis_json, confidence, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (result["url"], result["normalized_url"], result["model_probability"], result["heuristic_score"], result["risk_score"], result["decision"], result["label"], json.dumps(result["reasons"]), json.dumps(result["features"]), json.dumps(result["trusted_domain"]) if result["trusted_domain"] else None, json.dumps(result["page_analysis"]), result["confidence"], created))
+    cur = conn.execute("""INSERT INTO analyses(url, normalized_url, model_probability, heuristic_score, risk_score, decision, label, reasons_json, features_json, trusted_match_json, intelligence_json, page_analysis_json, confidence, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (result["url"], result["normalized_url"], result["model_probability"], result["heuristic_score"], result["risk_score"], result["decision"], result["label"], json.dumps(result["reasons"]), json.dumps(result["features"]), json.dumps(result["trusted_domain"]) if result["trusted_domain"] else None, json.dumps(result["intelligence"]), json.dumps(result["page_analysis"]), result["confidence"], created))
     result["analysis_id"] = cur.lastrowid; result["created_at"] = created
     conn.commit(); conn.close()
     return jsonify(result)
@@ -276,6 +274,7 @@ def history_detail(analysis_id):
         "model_probability_percent": round(row["model_probability"] * 100, 2), "model_source": _metadata.get("model_source", "trained model"),
         "heuristic_score": row["heuristic_score"], "risk_score": row["risk_score"], "decision": row["decision"], "label": row["label"], "confidence": row["confidence"],
         "trusted_domain": json.loads(row["trusted_match_json"]) if row["trusted_match_json"] else None,
+        "confidence": row["confidence"], "intelligence": json.loads(row["intelligence_json"]) if row["intelligence_json"] else {},
         "page_analysis": json.loads(row["page_analysis_json"]) if row["page_analysis_json"] else {},
         "reasons": json.loads(row["reasons_json"]), "features": json.loads(row["features_json"]), "created_at": row["created_at"]
     })
@@ -329,7 +328,7 @@ def report():
     if not analysis_id: return jsonify({"error": "analysis_id is required"}), 400
     conn = db(); row = conn.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,)).fetchone(); conn.close()
     if not row: return jsonify({"error": "Analysis not found"}), 404
-    result = {"normalized_url": row["normalized_url"], "label": row["label"], "decision": row["decision"], "risk_score": row["risk_score"], "model_probability_percent": row["model_probability"] * 100, "heuristic_score": row["heuristic_score"], "reasons": json.loads(row["reasons_json"]), "features": json.loads(row["features_json"]), "page_analysis": json.loads(row["page_analysis_json"]) if row["page_analysis_json"] else {}}
+    result = {"normalized_url": row["normalized_url"], "label": row["label"], "decision": row["decision"], "risk_score": row["risk_score"], "model_probability_percent": row["model_probability"] * 100, "heuristic_score": row["heuristic_score"], "reasons": json.loads(row["reasons_json"]), "features": json.loads(row["features_json"]), "intelligence": json.loads(row["intelligence_json"]) if row["intelligence_json"] else {}, "page_analysis": json.loads(row["page_analysis_json"]) if row["page_analysis_json"] else {}}
     filename = f"phishguard_report_{analysis_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"; path = REPORT_DIR / filename; build_pdf(result, path)
     return send_file(path, as_attachment=True, download_name=filename, mimetype="application/pdf")
 

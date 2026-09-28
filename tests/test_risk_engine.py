@@ -24,7 +24,7 @@ def test_multiple_strong_signals_can_block():
 
 
 def test_ip_is_critical_but_not_every_ip_is_automatically_blocked():
-    keys = critical_signal_keys({"has_ip": True, "has_at": False}, [{"key": "ip"}])
+    keys = critical_signal_keys({"has_ip": True, "has_at": False}, [{"key": "ip"}], {})
     assert "ip" in keys
     assert decision_for(50, 28, trusted=None, critical_signal=True, force_block=False)[0] == "review"
 
@@ -52,7 +52,7 @@ def test_clean_unknown_domain_is_safe():
     from risk_engine import heuristic_analysis, unknown_domain_risk, decision_for
     f = extract_features("https://www.example.com/")
     h = heuristic_analysis("https://www.example.com/", f)
-    risk = unknown_domain_risk(0.8, h["score"], 0, clean_page=True, brand_score=0)
+    risk = unknown_domain_risk(0.8, h["score"], 0, 0, clean_page=True, brand_score=0)
     assert risk <= 18
     assert decision_for(risk, h["score"]) == ("allow", "Safe")
 
@@ -64,7 +64,7 @@ def test_lookalike_brand_is_blockable():
     f = extract_features(url)
     h = heuristic_analysis(url, f)
     brand_score = h["brand_impersonation"]["score"]
-    risk = unknown_domain_risk(0.8, h["score"], 0, clean_page=False, brand_score=brand_score)
+    risk = unknown_domain_risk(0.8, h["score"], 0, 0, clean_page=False, brand_score=brand_score)
     assert brand_score >= 34
     assert decision_for(risk, h["score"], force_block=True) == ("block", "High risk")
 

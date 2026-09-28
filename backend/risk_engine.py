@@ -146,7 +146,7 @@ def combine_scores(model_probability, heuristic_score):
     return round(max(0.0, min(100.0, combined)), 2)
 
 
-def unknown_domain_risk(model_probability, heuristic_score, live_score=0, clean_page=False, brand_score=0):
+def unknown_domain_risk(model_probability, heuristic_score, live_score=0, intel_score=0, clean_page=False, brand_score=0):
     """Risk for domains outside the registry.
 
     A clean, unknown HTTPS domain is not penalized merely for being absent from the
@@ -154,17 +154,18 @@ def unknown_domain_risk(model_probability, heuristic_score, live_score=0, clean_
     """
     h = float(heuristic_score)
     live = float(live_score)
+    intel = float(intel_score)
     brand = float(brand_score)
     if brand:
-        return round(min(100.0, 18 + h * 0.45 + brand * 0.9 + live * 0.5), 2)
-    if h <= 8 and live <= 8 and clean_page:
+        return round(min(100.0, 18 + h * 0.45 + brand * 0.9 + live * 0.5 + intel), 2)
+    if h <= 8 and live <= 8 and intel == 0 and clean_page:
         return round(min(18.0, 5 + h * 0.35), 2)
-    if h <= 12 and live <= 12:
+    if h <= 12 and live <= 12 and intel == 0:
         return round(min(30.0, 8 + h * 0.9 + live * 0.4), 2)
-    return round(min(100.0, h * 0.7 + live * 0.55 + float(model_probability) * 100 * 0.25), 2)
+    return round(min(100.0, h * 0.7 + live * 0.55 + intel * 0.9 + float(model_probability) * 100 * 0.25), 2)
 
 
-def critical_signal_keys(features: dict, heuristic_signals: list[dict]) -> set[str]:
+def critical_signal_keys(features: dict, heuristic_signals: list[dict], intelligence: dict | None = None) -> set[str]:
     critical = set()
     if features.get("has_ip"):
         critical.add("ip")
@@ -173,6 +174,8 @@ def critical_signal_keys(features: dict, heuristic_signals: list[dict]) -> set[s
     for signal in heuristic_signals:
         if signal.get("key") == "brand-impersonation":
             critical.add("brand-impersonation")
+    if intelligence and int(intelligence.get("malicious", 0)) >= 1:
+        critical.add("threat-intel")
     return critical
 
 

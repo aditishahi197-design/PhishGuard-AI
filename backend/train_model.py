@@ -51,29 +51,7 @@ def main():
 
     X = data[FEATURE_ORDER]
     y = data["label"]
-
-    # Keep evaluation independent, then balance each split so the overwhelming
-    # phishing majority cannot make the model look accurate while ignoring
-    # legitimate URLs.
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
-    )
-
-    def balance_split(X_part, y_part, seed):
-        frame = X_part.copy()
-        frame["label"] = y_part.to_numpy()
-        counts = frame["label"].value_counts()
-        if len(counts) < 2:
-            raise ValueError("Both legitimate and phishing classes are required.")
-        n = int(counts.min())
-        balanced = pd.concat([
-            frame[frame["label"] == label].sample(n=n, random_state=seed)
-            for label in sorted(counts.index)
-        ]).sample(frac=1.0, random_state=seed)
-        return balanced[FEATURE_ORDER], balanced["label"]
-
-    X_train, y_train = balance_split(X_train, y_train, 42)
-    X_test, y_test = balance_split(X_test, y_test, 43)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42, stratify=y)
 
     base = RandomForestClassifier(
         n_estimators=300, random_state=42, n_jobs=-1,
@@ -102,8 +80,6 @@ def main():
         "rows_used": int(len(data)),
         "train_rows": int(len(X_train)),
         "test_rows": int(len(X_test)),
-        "class_balance": {"legitimate": int((y_train == 0).sum()), "phishing": int((y_train == 1).sum())},
-        "evaluation_balance": {"legitimate": int((y_test == 0).sum()), "phishing": int((y_test == 1).sum())},
         "model_type": "RandomForestClassifier + CalibratedClassifierCV(sigmoid)",
         "model_source": "trained calibrated model",
         "accuracy": float(accuracy),

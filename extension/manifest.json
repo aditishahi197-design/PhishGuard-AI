@@ -1,10 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "PhishGuard AI Prototype Guard",
+  "name": "PhishGuard Security Monitor",
   "version": "2.0.0",
-  "description": "Prototype browser guard that sends the current page URL to a local PhishGuard AI backend and shows a block page for high-risk results.",
+  "description": "Real-time defensive browser extension that inspects URLs against PhishGuard detection engines and prevents navigation to confirmed malicious sites.",
   "permissions": ["tabs", "storage"],
   "host_permissions": ["<all_urls>", "http://127.0.0.1:5000/*"],
   "background": {"service_worker": "background.js"},
-  "action": {"default_popup": "popup.html"}
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
 }

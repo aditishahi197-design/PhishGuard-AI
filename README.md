@@ -3,7 +3,7 @@
 
 PhishGuard AI is an AI-powered phishing website detection and prevention prototype developed as an academic cybersecurity project.
 
-The system does not rely only on a machine-learning prediction. It combines multiple sources of evidence, including URL features, machine-learning analysis, security heuristics, legitimate-domain verification, and live webpage analysis.
+The system does not rely only on a machine-learning prediction. It combines multiple sources of evidence, including URL features, machine-learning analysis, security heuristics, legitimate-domain verification, live webpage analysis, and optional threat intelligence.
 
 The final result is classified as:
 
@@ -26,6 +26,7 @@ The final result is classified as:
 - Lookalike-domain detection
 - Legitimate-domain registry
 - Live webpage analysis
+- Optional VirusTotal threat intelligence
 - Evidence-based risk assessment
 - SAFE / REVIEW / BLOCK classification
 - Analysis history
@@ -61,14 +62,29 @@ The final result is classified as:
              Live Page Analysis
                        │
                        ▼
+        Optional Threat Intelligence
+                       │
+                       ▼
               Evidence Aggregation
                        │
              ┌─────────┼─────────┐
              ▼         ▼         ▼
-            Safe     Review     Block
- 
+
 ```
 ---
+
+## 3. Optional VirusTotal Configuration
+
+Create the backend environment from `.env` and set `VIRUSTOTAL_API_KEY`.
+
+Do not place the API key in React/frontend code.
+
+Without a key, the application still works with:
+
+- Machine Learning
+- Security Heuristics
+- Legitimate Registry
+- Live Page Inspection
 
 ---
 

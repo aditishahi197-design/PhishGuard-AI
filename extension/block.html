@@ -1,80 +1,211 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>PhishGuard AI Blocked</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard | Access Restricted</title>
+    <link rel="icon" type="image/png" href="icon.png">
 
     <style>
-        body {
+        * {
+            box-sizing: border-box;
             margin: 0;
+            padding: 0;
+        }
+
+        body {
             min-height: 100vh;
             display: grid;
             place-items: center;
-            background: #070d16;
-            color: #eef5ff;
-            font-family: Arial, sans-serif;
+            background: #080c14;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 24px;
         }
 
-        .box {
-            width: min(620px, 86vw);
-            padding: 36px;
-            border: 1px solid #7c3945;
-            border-radius: 18px;
-            background: #16101a;
+        .guard-card {
+            width: min(580px, 94vw);
+            padding: 40px 36px;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            background: #0f172a;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
             text-align: center;
         }
 
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .logo-img {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.3));
+        }
+
+        .status-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 4px 10px;
+            border-radius: 9999px;
+            margin-bottom: 14px;
+        }
+
         h1 {
-            color: #ffb8c4;
+            font-size: 22px;
+            font-weight: 700;
+            color: #f8fafc;
+            letter-spacing: -0.015em;
+            margin-bottom: 10px;
         }
 
-        p {
-            color: #aab8ca;
+        .subtitle {
+            font-size: 14px;
+            color: #94a3b8;
             line-height: 1.5;
-            word-break: break-word;
+            margin-bottom: 24px;
         }
 
-        button {
-            padding: 11px 16px;
-            border-radius: 9px;
-            border: 1px solid #394b63;
-            background: #0d1a2a;
-            color: #eef5ff;
+        .details-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: left;
+            margin-bottom: 26px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            padding: 6px 0;
+            border-bottom: 1px solid #283548;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            color: #f1f5f9;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            word-break: break-all;
+            max-width: 360px;
+            text-align: right;
+        }
+
+        .danger-text {
+            color: #ef4444;
+            font-weight: 700;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        button.btn-primary {
+            padding: 11px 22px;
+            border-radius: 8px;
+            border: 1px solid #3b82f6;
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
+            transition: background 0.15s ease;
         }
 
-        button:hover {
-            background: #14263b;
+        button.btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        button.btn-secondary {
+            padding: 11px 18px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: transparent;
+            color: #cbd5e1;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        button.btn-secondary:hover {
+            background: #1e293b;
+            color: #f8fafc;
         }
     </style>
 </head>
 
 <body>
-    <div class="box">
-        <h1>⛔ PhishGuard AI blocked this page</h1>
+    <div class="guard-card">
+        <div class="logo-badge">
+            <img src="icon.png" alt="PhishGuard Shield" class="logo-img">
+        </div>
 
-        <p id="url"></p>
+        <div>
+            <span class="status-pill">High Risk Intercepted</span>
+        </div>
 
-        <p id="risk"></p>
+        <h1>Access Restricted by PhishGuard</h1>
 
-        <p>
-            This is a defensive academic prototype.
-            Verify the destination independently before continuing.
+        <p class="subtitle">
+            PhishGuard blocked navigation to this destination because it exhibits credential harvesting, deceptive domain infrastructure, or known malicious indicators.
         </p>
 
-        <button onclick="history.back()">
-            Go back
-        </button>
+        <div class="details-box">
+            <div class="detail-row">
+                <span class="detail-label">Destination URL</span>
+                <span class="detail-value" id="url">Checking...</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Assessed Threat Level</span>
+                <span class="detail-value danger-text" id="risk">Elevated</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Interception Policy</span>
+                <span class="detail-value">Real-Time Defensive Shield</span>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn-primary" onclick="history.back()">
+                Return to Safe Page
+            </button>
+            <button class="btn-secondary" onclick="window.close()">
+                Close Window
+            </button>
+        </div>
     </div>
 
     <script>
         const q = new URLSearchParams(location.search);
+        const targetUrl = q.get("url") || "Unknown Destination";
+        const riskVal = q.get("risk");
 
-        document.getElementById("url").textContent =
-            q.get("url") || "";
-
-        document.getElementById("risk").textContent =
-            "Risk score: " + (q.get("risk") || "unknown") + "%";
+        document.getElementById("url").textContent = targetUrl;
+        document.getElementById("risk").textContent = riskVal ? (riskVal + "% Risk Score") : "Confirmed Threat (High)";
     </script>
 </body>
 </html>
