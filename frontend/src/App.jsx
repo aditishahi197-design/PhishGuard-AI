@@ -147,6 +147,20 @@ function Icon({ name, size = 16, className = '' }) {
           <polyline points="10 9 9 9 8 9" />
         </svg>
       )
+    case 'arrow-right':
+      return (
+        <svg {...props}>
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      )
+    case 'terminal':
+      return (
+        <svg {...props}>
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+      )
     default:
       return null
   }
@@ -158,6 +172,8 @@ export default function App() {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState({ total: 0, blocked: 0, review: 0, allowed: 0, avg_risk: 0 })
   const [loading, setLoading] = useState(false)
+  const [deepScanning, setDeepScanning] = useState(false)
+  const [deepScanResult, setDeepScanResult] = useState(null)
   const [protectionEnabled, setProtectionEnabled] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
@@ -167,6 +183,21 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('phishguard-theme') === 'dark'
   })
+  const [scanDots, setScanDots] = useState(0)
+
+  // Animated dots progression: "Scanning", "Scanning.", "Scanning.." up to 6 dots, each after 0.5s (500ms)
+  useEffect(() => {
+    if (!loading && !deepScanning) {
+      setScanDots(0)
+      return
+    }
+    const timer = setInterval(() => {
+      setScanDots((prev) => (prev + 1) % 7) // 0 to 6 dots (7 states total)
+    }, 500)
+    return () => clearInterval(timer)
+  }, [loading, deepScanning])
+
+  const scanningDotsText = `Scanning${'.'.repeat(scanDots)}`
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
@@ -226,6 +257,7 @@ export default function App() {
     fetchData()
   }, [])
 
+  // Standard ML URL Check
   const handleScan = async (targetUrl = url) => {
     const cleanUrl = targetUrl.trim()
     if (!cleanUrl) {
@@ -255,6 +287,92 @@ export default function App() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Deep Sandbox Scan with 2-second polling and 90-second timeout
+  const handleDeepScan = async (targetUrl = url) => {
+    const cleanUrl = targetUrl.trim()
+    if (!cleanUrl) {
+      setError('Please paste or type a web address for deep sandbox analysis.')
+      return
+    }
+
+    setDeepScanning(true)
+    setError('')
+    setDeepScanResult(null)
+
+    const startTime = Date.now()
+    const TIMEOUT_MS = 90000 // 90 seconds timeout
+    const POLL_INTERVAL_MS = 2000 // poll every 2 seconds
+
+    try {
+      // 1. Initiate scan: POST /deep-scan
+      let startRes
+      try {
+        startRes = await fetch(`${API}/deep-scan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanUrl }),
+        })
+      } catch {
+        // Fallback to direct path if proxy rewrite behaves differently
+        startRes = await fetch('/deep-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanUrl }),
+        })
+      }
+
+      const startData = await startRes.json().catch(() => ({}))
+      if (!startRes.ok) {
+        throw new Error(startData.error || 'Could not start sandbox deep scan.')
+      }
+
+      const jobId = startData.job_id
+      if (!jobId) {
+        throw new Error('No job identifier was returned by the sandbox backend.')
+      }
+
+      // 2. Poll GET /deep-scan/<job_id> every 2 seconds until done or failed
+      while (true) {
+        if (Date.now() - startTime >= TIMEOUT_MS) {
+          throw new Error('Sandbox deep scan timed out after 90 seconds. Execution took longer than expected.')
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+
+        let pollRes
+        try {
+          pollRes = await fetch(`${API}/deep-scan/${jobId}`)
+        } catch {
+          pollRes = await fetch(`/deep-scan/${jobId}`)
+        }
+
+        if (!pollRes.ok) {
+          const errData = await pollRes.json().catch(() => ({}))
+          throw new Error(errData.error || 'Failed to retrieve deep scan status.')
+        }
+
+        const pollData = await pollRes.json()
+
+        if (pollData.status === 'done') {
+          setDeepScanResult(pollData.result)
+          setUrl(cleanUrl)
+          break
+        } else if (pollData.status === 'failed') {
+          throw new Error(pollData.error || 'Sandbox deep scan failed to analyze the target URL.')
+        }
+        // status === 'pending' continues polling
+      }
+    } catch (err) {
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        setError('Backend server is unreachable. Please ensure the Flask backend is running on port 5000.')
+      } else {
+        setError(err.message || 'An unexpected error occurred during deep sandbox analysis.')
+      }
+    } finally {
+      setDeepScanning(false)
     }
   }
 
@@ -362,6 +480,97 @@ export default function App() {
     }
   }
 
+  const getDeepScanVerdictDetails = (verdict) => {
+    const v = (verdict || '').toLowerCase()
+    // 1. Phishing ALWAYS takes top priority
+    if (v.includes('phish')) {
+      return {
+        title: 'Phishing Target Intercepted',
+        badgeText: 'Phishing',
+        className: 'verdict-blocked',
+        iconName: 'shield-x',
+        description:
+          'Active deception or security interstitial detected inside sandbox environment. The target page initiates credential harvesting forms, deceptive brand spoofing, or has been flagged for phishing.',
+      }
+    }
+    // 2. Suspicious behavior
+    if (v.includes('suspicious')) {
+      return {
+        title: 'Suspicious Behavior Detected',
+        badgeText: 'Suspicious',
+        className: 'verdict-review',
+        iconName: 'alert-triangle',
+        description:
+          'Anomalous DOM modifications, obfuscated script executions, inactive threat simulation paths, or multi-hop redirect gateways were identified.',
+      }
+    }
+    // 3. Timeouts / Inactive / Inaccessible
+    if (v.includes('timeout') || v.includes('timed out') || v.includes('inactive') || v.includes('unreachable') || v.includes('failed')) {
+      return {
+        title: 'Connection Inaccessible / Timed Out',
+        badgeText: 'Timeout',
+        className: 'verdict-review',
+        iconName: 'alert-triangle',
+        description:
+          'The destination server timed out or failed to complete HTTP communication during sandbox evaluation.',
+      }
+    }
+    // 4. HTTP 404 / Not Found
+    if (v.includes('404') || v.includes('not found')) {
+      return {
+        title: 'Inactive / Endpoint Not Found (HTTP 404)',
+        badgeText: 'HTTP 404',
+        className: 'verdict-review',
+        iconName: 'alert-triangle',
+        description:
+          'The destination server returned HTTP 404 (Not Found) or 410 (Gone). The page does not exist, was taken down by the host, or is an inactive dead link.',
+      }
+    }
+    // 5. NXDOMAIN
+    if (v.includes('nxdomain') || v.includes('offline')) {
+      return {
+        title: 'Non-Existent / Inactive Domain (NXDOMAIN)',
+        badgeText: 'NXDOMAIN',
+        className: 'verdict-review',
+        iconName: 'alert-triangle',
+        description:
+          'This domain failed DNS resolution. Public nameservers confirm it does not exist (NXDOMAIN / ERR_NAME_NOT_RESOLVED). The site is offline, expired, or suspended.',
+      }
+    }
+    // 6. HTTP Error (403, 500, etc.)
+    if (v.includes('403') || v.includes('500') || v.includes('502') || v.includes('error') || v.includes('blocked')) {
+      return {
+        title: 'Endpoint Inaccessible / Server Error',
+        badgeText: 'HTTP Error',
+        className: 'verdict-review',
+        iconName: 'alert-triangle',
+        description:
+          'The destination web server returned an error status code or actively blocked access to the sandbox container.',
+      }
+    }
+    // 7. Verified Safe ONLY when explicitly marked safe or allow
+    if (v.includes('safe') || v.includes('allow')) {
+      return {
+        title: 'Safe Destination Verified',
+        badgeText: 'Safe',
+        className: 'verdict-safe',
+        iconName: 'check',
+        description:
+          'Headless container executed full navigation and DOM rendering without observing credential spoofing or malicious network signals.',
+      }
+    }
+    // 8. Fallback is ALWAYS review, NEVER safe
+    return {
+      title: 'Unverified Destination',
+      badgeText: 'Review',
+      className: 'verdict-review',
+      iconName: 'alert-triangle',
+      description: 'Destination evaluation yielded inconclusive telemetry. Exercise caution.',
+    }
+  }
+
+  const isScanningAny = loading || deepScanning
+
   return (
     <div className="container">
       {/* Subtle Ambient Radar Circles */}
@@ -418,7 +627,7 @@ export default function App() {
         <section className="scanner-card">
           <div className="scanner-intro">
             <h2>Check a link before you click it</h2>
-            <p>Paste any web address to test it against verified domain lists, brand lookalikes, and pattern-recognition models.</p>
+            <p>Paste any web address to test it against verified domain lists, brand lookalikes, pattern-recognition models, or sandbox emulation.</p>
           </div>
 
           <form
@@ -433,16 +642,22 @@ export default function App() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="Paste a web address (e.g. login-verify-update.com/signin)..."
-              disabled={loading}
+              disabled={isScanningAny}
             />
-            <button type="submit" className="scan-btn" disabled={loading}>
-              {loading ? (
-                <>
-                  <span className="spinner"></span> Scanning...
-                </>
-              ) : (
-                'Scan Link'
-              )}
+
+            {/* URL Check Button */}
+            <button type="submit" className="scan-btn" disabled={isScanningAny}>
+              {loading ? scanningDotsText : 'Scan Link'}
+            </button>
+
+            {/* Deep Scan Button */}
+            <button
+              type="button"
+              className="scan-btn deep-scan-btn"
+              onClick={() => handleDeepScan()}
+              disabled={isScanningAny}
+            >
+              {deepScanning ? scanningDotsText : 'Deep Scan'}
             </button>
           </form>
 
@@ -456,7 +671,7 @@ export default function App() {
                   type="button"
                   className={`chip chip-${demo.type}`}
                   onClick={() => handleQuickDemo(demo.url)}
-                  disabled={loading}
+                  disabled={isScanningAny}
                 >
                   {demo.label}
                 </button>
@@ -492,7 +707,239 @@ export default function App() {
           </div>
         </section>
 
-        {/* Scan Result Section */}
+        {/* Sandbox Deep Scan Result Section */}
+        {deepScanResult && (
+          <section className="deep-scan-card">
+            <div className="deep-scan-header">
+              <div className="deep-scan-title-wrap">
+                <span className="sandbox-badge">
+                  <Icon name="terminal" size={14} />
+                  <span>Sandbox Deep Scan Result</span>
+                </span>
+                <h3>Isolated Environment Execution</h3>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setDeepScanResult(null)}
+                aria-label="Dismiss deep scan results"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            {(() => {
+              const verdictInfo = getDeepScanVerdictDetails(deepScanResult.verdict)
+              const screenshotSrc = deepScanResult.screenshot?.startsWith('data:')
+                ? deepScanResult.screenshot
+                : `data:image/png;base64,${deepScanResult.screenshot || ''}`
+
+              return (
+                <>
+                  <div className={`verdict-banner ${verdictInfo.className}`}>
+                    <div className="verdict-icon">
+                      <Icon name={verdictInfo.iconName} size={28} />
+                    </div>
+                    <div className="verdict-text">
+                      <div className="verdict-header">
+                        <h3>{verdictInfo.title}</h3>
+                        <span className="verdict-badge">{deepScanResult.verdict}</span>
+                      </div>
+                      <p>{verdictInfo.description}</p>
+                      <div className="url-preview">{deepScanResult.scanned_url || url}</div>
+                    </div>
+                  </div>
+
+                  {/* Deep Scan Key Metrics */}
+                  <div className="scores-grid">
+                    <div className="score-box">
+                      <span className="score-label">Sandbox Verdict</span>
+                      <strong className={`score-value ${verdictInfo.className}`}>
+                        {deepScanResult.verdict}
+                      </strong>
+                      <span className="score-sub">Behavioral runtime classification</span>
+                    </div>
+
+                    <div className="score-box">
+                      <span className="score-label">Confidence Score</span>
+                      <strong className="score-value">
+                        {typeof deepScanResult.confidence === 'number'
+                          ? `${(deepScanResult.confidence * 100).toFixed(1)}%`
+                          : deepScanResult.confidence}
+                      </strong>
+                      <span className="score-sub">
+                        Relative confidence rating ({Number(deepScanResult.confidence).toFixed(2)})
+                      </span>
+                    </div>
+
+                    <div className="score-box">
+                      <span className="score-label">Redirect Hops</span>
+                      <strong className="score-value">
+                        {deepScanResult.redirect_chain?.length || 1}
+                      </strong>
+                      <span className="score-sub">Total navigation transitions observed</span>
+                    </div>
+                  </div>
+
+                  {/* Redirect Chain Inspection */}
+                  <div className="findings-section">
+                    <h4>Observed Navigation & Redirect Chain</h4>
+                    <div className="redirect-chain-list">
+                      {deepScanResult.redirect_chain && deepScanResult.redirect_chain.length > 0 ? (
+                        deepScanResult.redirect_chain.map((hop, i) => (
+                          <div className="redirect-hop-item" key={i}>
+                            <div className="hop-index">
+                              {i === 0
+                                ? 'Origin'
+                                : i === deepScanResult.redirect_chain.length - 1
+                                ? 'Final'
+                                : `Hop ${i}`}
+                            </div>
+                            <div className="hop-url" title={hop}>
+                              {hop}
+                            </div>
+                            {i < deepScanResult.redirect_chain.length - 1 && (
+                              <div className="hop-arrow">
+                                <Icon name="arrow-right" size={14} />
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="no-flags">Single direct navigation without redirects.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sandbox Captured Screenshot */}
+                  {deepScanResult.screenshot && (
+                    <div className="screenshot-section">
+                      <h4>Sandbox Rendered Viewport Screenshot</h4>
+                      <div className="screenshot-frame">
+                        <div className="screenshot-topbar">
+                          <span className="browser-dot red"></span>
+                          <span className="browser-dot yellow"></span>
+                          <span className="browser-dot green"></span>
+                          <span className="browser-address">{deepScanResult.scanned_url || url}</span>
+                        </div>
+                        <img
+                          src={screenshotSrc}
+                          alt="Sandbox viewport preview"
+                          className="screenshot-image"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sandbox Reasons & Indicators */}
+                  <div className="findings-section" style={{ marginTop: '22px' }}>
+                    <h4>Sandbox Detection Reasons & Evidence</h4>
+                    <div className="reasons-list">
+                      {deepScanResult.reasons && deepScanResult.reasons.length > 0 ? (
+                        deepScanResult.reasons.map((reason, idx) => (
+                          <div className="reason-item" key={idx}>
+                            <div className="reason-badge">Signal #{idx + 1}</div>
+                            <div className="reason-content">
+                              <strong>{reason}</strong>
+                              <p>Observed during headless container payload evaluation.</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="no-flags">No threat indicators triggered during sandbox execution.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Wire Packet & Canary Telemetry Section */}
+                  {deepScanResult.packet_telemetry && (
+                    <div className="telemetry-section">
+                      <h4>Wire Packet &amp; Canary Telemetry (Network Layer Analysis)</h4>
+                      <div className="telemetry-card">
+                        <div className="telemetry-row header-row">
+                          <div>
+                            <span className="telemetry-tag">Wireshark / TShark Wire Inspection</span>
+                            <h5>Outbound Packet &amp; Encryption Forensic Log</h5>
+                          </div>
+                          <span
+                            className={`telemetry-status-pill ${
+                              deepScanResult.packet_telemetry.wire_encryption.cleartext_leak_on_wire
+                                ? 'pill-danger'
+                                : 'pill-safe'
+                            }`}
+                          >
+                            {deepScanResult.packet_telemetry.wire_encryption.cleartext_leak_on_wire
+                              ? 'CLEARTEXT LEAK DETECTED'
+                              : 'ENCRYPTED IN TRANSIT'}
+                          </span>
+                        </div>
+
+                        <div className="telemetry-grid">
+                          <div className="telemetry-box">
+                            <span className="telemetry-label">Source &amp; Destination Socket</span>
+                            <strong>
+                              {deepScanResult.packet_telemetry.source_ip} ➔ {deepScanResult.packet_telemetry.destination_ip}:
+                              {deepScanResult.packet_telemetry.destination_port}
+                            </strong>
+                            <span className="telemetry-sub">{deepScanResult.packet_telemetry.protocol}</span>
+                          </div>
+
+                          <div className="telemetry-box">
+                            <span className="telemetry-label">Transport Encryption &amp; Protocol</span>
+                            <strong>{deepScanResult.packet_telemetry.wire_encryption.tls_version}</strong>
+                            <span className="telemetry-sub">
+                              Entropy: {deepScanResult.packet_telemetry.wire_encryption.entropy_score} bits/byte (
+                              {deepScanResult.packet_telemetry.wire_encryption.cipher_suite})
+                            </span>
+                          </div>
+
+                          <div className="telemetry-box">
+                            <span className="telemetry-label">Canary Honeytoken Injected</span>
+                            <strong>{deepScanResult.packet_telemetry.canary_injection.canary_user}</strong>
+                            <span className="telemetry-sub">
+                              Password: <code>{deepScanResult.packet_telemetry.canary_injection.canary_pass}</code>
+                            </span>
+                          </div>
+
+                          <div className="telemetry-box">
+                            <span className="telemetry-label">Exfiltration Drop-Zone Target</span>
+                            <strong title={deepScanResult.packet_telemetry.canary_injection.post_destination}>
+                              {deepScanResult.packet_telemetry.canary_injection.post_destination}
+                            </strong>
+                            <span
+                              className={`telemetry-sub ${
+                                deepScanResult.packet_telemetry.canary_injection.destination_mismatch
+                                  ? 'text-danger'
+                                  : ''
+                              }`}
+                            >
+                              {deepScanResult.packet_telemetry.canary_injection.destination_mismatch
+                                ? '⚠️ Drop-zone hostname does not match page domain!'
+                                : 'Matches origin domain'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="telemetry-details">
+                          <div className="telemetry-detail-item">
+                            <span>Observed Payload Encoding:</span>
+                            <code>{deepScanResult.packet_telemetry.canary_injection.encoding_detected}</code>
+                          </div>
+                          <div className="telemetry-detail-item">
+                            <span>Server Reaction to Fake Account:</span>
+                            <em>{deepScanResult.packet_telemetry.canary_injection.server_reaction}</em>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+          </section>
+        )}
+
+        {/* Scan Result Section (Standard ML Check) */}
         {result && (
           <section className="result-card">
             {(() => {
@@ -784,7 +1231,7 @@ export default function App() {
         <section className="info-card">
           <div className="info-header">
             <h3>How the detection system works</h3>
-            <p>PhishGuard combines three independent layers of defense to inspect links without relying on a single point of failure.</p>
+            <p>PhishGuard combines independent layers of defense to inspect links without relying on a single point of failure.</p>
           </div>
           <div className="info-grid">
             <div className="info-box">
@@ -803,9 +1250,16 @@ export default function App() {
             </div>
             <div className="info-box">
               <div className="info-icon">
+                <Icon name="terminal" size={22} />
+              </div>
+              <h4>3. Sandbox Emulation</h4>
+              <p>Executes deep browser emulation to record redirect chains, inspect loaded forms, and capture visual page screenshots.</p>
+            </div>
+            <div className="info-box">
+              <div className="info-icon">
                 <Icon name="shield" size={22} />
               </div>
-              <h4>3. Prevention & Interception</h4>
+              <h4>4. Prevention & Interception</h4>
               <p>Integrates with the browser extension to intercept navigation before malicious scripts can harvest passwords or tokens.</p>
             </div>
           </div>

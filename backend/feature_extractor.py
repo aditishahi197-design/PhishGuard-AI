@@ -14,6 +14,7 @@ SUSPICIOUS_WORDS = {
     "login", "signin", "verify", "verification", "secure", "security", "account",
     "update", "confirm", "password", "credential", "bank", "wallet", "payment",
     "invoice", "support", "alert", "urgent", "unlock", "recover", "authenticate",
+    "phishing", "phish", "malware", "stealer", "fake",
 }
 
 

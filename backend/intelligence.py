@@ -5,8 +5,13 @@ import socket
 from urllib.parse import urlparse
 
 import requests
+import urllib3
+import urllib3.util.connection as urllib_conn
 
-USER_AGENT = "PhishGuardAI/9.0 security-research-prototype"
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+urllib_conn.allowed_gai_family = lambda: socket.AF_INET
+
+USER_AGENT = "PhishGuardAI/9.0 security-research-prototype (Mozilla/5.0 Windows NT 10.0; Win64; x64)"
 MAX_BYTES = 2_000_000
 
 LOGIN_WORDS = re.compile(r"\b(sign\s*in|log\s*in|login|password|passwd|verify|verification|account|otp|one[- ]time|credential|wallet|card number|cvv|ssn)\b", re.I)
@@ -17,7 +22,10 @@ def _public_ip(host):
     try:
         infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except Exception:
-        return []
+        try:
+            infos = socket.getaddrinfo(host, 80, type=socket.SOCK_STREAM)
+        except Exception:
+            return []
     ips = []
     for info in infos:
         try:
@@ -42,7 +50,7 @@ def inspect_page(url, trusted_domain=None):
         return {"available": False, "status": "host did not resolve to a public IP", "signals": [], "final_url": url}
 
     try:
-        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=(3, 5), allow_redirects=True, stream=True)
+        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=(4, 6), allow_redirects=True, stream=True, verify=False)
         chunks, size = [], 0
         for chunk in r.iter_content(65536):
             if not chunk:
@@ -81,8 +89,29 @@ def inspect_page(url, trusted_domain=None):
     if "text/html" not in (r.headers.get("content-type") or "").lower():
         add("non-html", 0, "Non-HTML response", "The destination did not return an HTML page, so content analysis is limited.")
 
+    # Check for inactive / 404 status codes
+    if r.status_code in {404, 410}:
+        add("http-404", 14, f"Endpoint Not Found (HTTP {r.status_code})", f"The destination server returned HTTP {r.status_code}. The requested page does not exist or has been taken down.")
+    elif r.status_code >= 400:
+        add(f"http-{r.status_code}", 10, f"HTTP Server Error ({r.status_code})", f"The destination server returned HTTP {r.status_code} error code.")
+
+    # Check for security gateway phishing interstitials (e.g. Cloudflare Suspected Phishing, Google Safe Browsing)
+    threat_interstitial_patterns = [
+        r"suspected\s+phishing",
+        r"reported\s+for\s+potential\s+phishing",
+        r"deceptive\s+site\s+ahead",
+        r"reported\s+as\s+a\s+deceptive\s+site",
+        r"this\s+site\s+has\s+been\s+reported\s+as\s+unsafe",
+        r"phishing\s+is\s+when\s+a\s+site\s+attempts\s+to\s+steal",
+        r"the\s+site\s+ahead\s+contains\s+harmful\s+programs",
+        r"the\s+site\s+ahead\s+contains\s+malware",
+        r"dangerous\s+site",
+    ]
+    if any(re.search(pat, body, re.I) for pat in threat_interstitial_patterns) or any(re.search(pat, title, re.I) for pat in threat_interstitial_patterns):
+        add("threat-interstitial", 50, "Confirmed Phishing / Threat Interstitial", "Destination displays an active security gateway warning (e.g. Cloudflare 'Suspected Phishing' or browser deceptive site interstitial).")
+
     return {
-        "available": True, "status": f"HTTP {r.status_code}", "final_url": r.url,
+        "available": True, "status": f"HTTP {r.status_code}", "status_code": r.status_code, "final_url": r.url,
         "resolved_ips": ips, "title": title, "forms": forms,
         "password_fields": password_fields, "external_scripts": external_scripts,
         "login_terms": login_hits, "brand_terms": brand_hits, "signals": signals,

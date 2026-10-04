@@ -7,11 +7,19 @@ from feature_extractor import SUSPICIOUS_WORDS
 SUSPICIOUS_TLDS = {"top", "xyz", "click", "zip", "mov", "work", "support", "buzz", "gq", "tk", "ml", "cf"}
 SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "is.gd", "ow.ly", "buff.ly", "cutt.ly", "rb.gy"}
 BRAND_DOMAINS = {
-    "google": {"google.com"}, "paypal": {"paypal.com"}, "microsoft": {"microsoft.com", "cloud.microsoft"},
-    "apple": {"apple.com"}, "amazon": {"amazon.com"}, "facebook": {"facebook.com"},
+    "google": {"google.com"}, "paypal": {"paypal.com"}, "microsoft": {"microsoft.com", "cloud.microsoft", "live.com", "office.com"},
+    "apple": {"apple.com", "icloud.com"}, "amazon": {"amazon.com"}, "facebook": {"facebook.com"},
     "instagram": {"instagram.com"}, "whatsapp": {"whatsapp.com"}, "netflix": {"netflix.com"},
     "linkedin": {"linkedin.com"}, "github": {"github.com"}, "sbi": {"sbi.co.in"},
     "hdfc": {"hdfcbank.com"}, "icici": {"icicibank.com"}, "flipkart": {"flipkart.com"},
+    "discord": {"discord.com", "discordapp.com", "discord.gg"},
+    "steam": {"steampowered.com", "steamcommunity.com"},
+    "spotify": {"spotify.com"}, "twitter": {"twitter.com", "x.com"},
+    "chase": {"chase.com"}, "wellsfargo": {"wellsfargo.com"},
+    "adobe": {"adobe.com"}, "dropbox": {"dropbox.com"},
+    "slack": {"slack.com"}, "zoom": {"zoom.us"},
+    "coinbase": {"coinbase.com"}, "binance": {"binance.com"},
+    "roblox": {"roblox.com"}, "tiktok": {"tiktok.com"},
 }
 LOOKALIKE_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a"})
 
@@ -133,6 +141,9 @@ def heuristic_analysis(url: str, f: dict) -> dict:
         add(8, "query", "Large query string", "A large query string can contain redirect or tracking data that deserves inspection.")
     if host in SHORTENERS:
         add(10, "shortener", "URL shortener", "Shortened URLs hide the final destination until expanded.")
+    path_lower = (p.path or "").lower()
+    if any(k in path_lower for k in ("phishing", "malware", "fake-login", "stealer", "credential-harvest")) or "testsafebrowsing" in host:
+        add(32, "threat-path", "Explicit threat / phishing indicator in path", f"The URL path '{p.path}' contains recognized phishing simulation or threat indicators.")
 
     brand = brand_impersonation_analysis(host)
     signals.extend(brand["signals"])
@@ -172,8 +183,8 @@ def critical_signal_keys(features: dict, heuristic_signals: list[dict], intellig
     if features.get("has_at"):
         critical.add("at")
     for signal in heuristic_signals:
-        if signal.get("key") == "brand-impersonation":
-            critical.add("brand-impersonation")
+        if signal.get("key") in {"brand-impersonation", "threat-path"}:
+            critical.add(signal.get("key"))
     if intelligence and int(intelligence.get("malicious", 0)) >= 1:
         critical.add("threat-intel")
     return critical

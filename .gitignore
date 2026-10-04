@@ -3,7 +3,11 @@ __pycache__/
 *.pyc
 backend/.venv/
 backend/phishguard.db
-backend/reports/*.pdf
+backend/reports/*
+!backend/reports/.gitkeep
 backend/model/*.joblib
 backend/model/model_metadata.json
 backend/.env
+frontend/dist/
+dist/
+
