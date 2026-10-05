@@ -1,8 +1,3 @@
-// Extension Popup Logic (Manifest V3)
-
-/**
- * Existing blocking function: temporarily redirects the tab to the warning page.
- */
 function blockTab(tabId, url, risk = 100) {
   const target = chrome.runtime.getURL('block.html') + 
     '?url=' + encodeURIComponent(url) + 
@@ -10,7 +5,6 @@ function blockTab(tabId, url, risk = 100) {
   return chrome.tabs.update(tabId, { url: target });
 }
 
-// 1. Existing Standard ML URL Check
 document.getElementById('scan').onclick = async () => {
   const status = document.getElementById('status');
   status.innerHTML = '<span class="ext-spinner"></span> Scanning…';
@@ -31,7 +25,6 @@ document.getElementById('scan').onclick = async () => {
   }
 };
 
-// 2. Deep Sandbox Scan (POST /deep-scan & Poll GET /deep-scan/<job_id> every 2s)
 document.getElementById('deepScan').onclick = async () => {
   const status = document.getElementById('status');
   const scanBtn = document.getElementById('scan');
@@ -48,11 +41,10 @@ document.getElementById('deepScan').onclick = async () => {
   deepBtn.disabled = true;
 
   const startTime = Date.now();
-  const TIMEOUT_MS = 90000; // 90 seconds timeout
-  const POLL_INTERVAL_MS = 2000; // Poll every 2 seconds
+  const TIMEOUT_MS = 90000;
+  const POLL_INTERVAL_MS = 2000;
 
   try {
-    // Initiate sandbox scan
     const startRes = await fetch('http://127.0.0.1:5000/deep-scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,7 +58,6 @@ document.getElementById('deepScan').onclick = async () => {
 
     const jobId = startData.job_id;
 
-    // Poll status every 2 seconds until done, failed, or timed out
     while (true) {
       if (Date.now() - startTime >= TIMEOUT_MS) {
         throw new Error('Sandbox deep scan timed out after 90 seconds.');
@@ -95,7 +86,6 @@ document.getElementById('deepScan').onclick = async () => {
           </div>
         `;
 
-        // Requirement 9: If the verdict is "Phishing", call existing blocking function to temporarily block the URL
         if (verdict === 'Phishing') {
           await blockTab(tab.id, tab.url, confidencePercent);
         }
@@ -103,7 +93,6 @@ document.getElementById('deepScan').onclick = async () => {
       } else if (pollData.status === 'failed') {
         throw new Error(pollData.error || 'Sandbox deep scan failed.');
       }
-      // status === 'pending' continues polling
     }
   } catch (err) {
     status.innerHTML = `<div class="status-box status-warning">${err.message || 'Start the Flask backend first on port 5000.'}</div>`;

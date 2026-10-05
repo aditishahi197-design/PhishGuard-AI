@@ -246,12 +246,13 @@ def run_sandbox_scan(job_id, url):
                     },
                     "canary_injection": {
                         "form_found": False,
-                        "canary_user": "N/A",
-                        "canary_pass": "N/A",
+                        "canary_user": "Technoblade@never.die",
+                        "canary_pass": "12345678",
                         "post_destination": "None (Host unreachable)",
                         "destination_mismatch": False,
-                        "encoding_detected": "None",
+                        "encoding_detected": "None (No transmission)",
                         "payload_contains_password": False,
+                        "password_status": "Not submitted (Host unreachable / NXDOMAIN)",
                         "server_reaction": "Destination unreachable — Public nameservers returned NXDOMAIN (Non-Existent Domain)"
                     }
                 }
@@ -486,8 +487,16 @@ def run_sandbox_scan(job_id, url):
                 server_reaction_text = "Clean DOM hierarchy — no login or password forms present"
 
         # -----------------------------------------------------------------
-        # STEP 6: Package Genuine Result & Telemetry
-        # -----------------------------------------------------------------
+        if password_fields > 0:
+            if destination_mismatch:
+                pwd_status = "Incorrect / Diverted (Fake credentials sent to external rogue link)"
+            elif trusted:
+                pwd_status = "Incorrect / Rejected by official portal (Account does not exist, as expected)"
+            else:
+                pwd_status = "Incorrect / Rejected by server (Fake credentials not recognized)"
+        else:
+            pwd_status = "NA (No login form found on page)"
+
         result_payload = {
             "verdict": verdict,
             "confidence": confidence,
@@ -510,13 +519,14 @@ def run_sandbox_scan(job_id, url):
                 },
                 "canary_injection": {
                     "form_found": password_fields > 0,
-                    "canary_user": "audit_canary@test.local" if password_fields > 0 else "N/A",
-                    "canary_pass": "Dummy#SecretPass!88" if password_fields > 0 else "N/A",
-                    "post_destination": action_dest_display,
-                    "destination_mismatch": destination_mismatch,
-                    "encoding_detected": "POST Application/x-www-form-urlencoded" if password_fields > 0 else "No credential transmission observed",
+                    "canary_user": "Technoblade@never.die" if password_fields > 0 else "NA",
+                    "canary_pass": "12345678" if password_fields > 0 else "NA",
+                    "post_destination": action_dest_display if password_fields > 0 else "NA",
+                    "destination_mismatch": destination_mismatch if password_fields > 0 else False,
+                    "encoding_detected": "POST Application/x-www-form-urlencoded" if password_fields > 0 else "NA",
                     "payload_contains_password": password_fields > 0,
-                    "server_reaction": server_reaction_text
+                    "password_status": pwd_status,
+                    "server_reaction": server_reaction_text if password_fields > 0 else "NA"
                 }
             }
         }

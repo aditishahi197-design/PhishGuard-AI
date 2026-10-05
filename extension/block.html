@@ -176,10 +176,6 @@
 
         <div class="details-box">
             <div class="detail-row">
-                <span class="detail-label">Destination URL</span>
-                <span class="detail-value" id="url">Checking...</span>
-            </div>
-            <div class="detail-row">
                 <span class="detail-label">Assessed Threat Level</span>
                 <span class="detail-value danger-text" id="risk">Elevated</span>
             </div>
@@ -190,22 +186,15 @@
         </div>
 
         <div class="actions">
-            <button class="btn-primary" onclick="history.back()">
+            <button class="btn-primary" id="btn-return">
                 Return to Safe Page
             </button>
-            <button class="btn-secondary" onclick="window.close()">
+            <button class="btn-secondary" id="btn-close">
                 Close Window
             </button>
         </div>
     </div>
 
-    <script>
-        const q = new URLSearchParams(location.search);
-        const targetUrl = q.get("url") || "Unknown Destination";
-        const riskVal = q.get("risk");
-
-        document.getElementById("url").textContent = targetUrl;
-        document.getElementById("risk").textContent = riskVal ? (riskVal + "% Risk Score") : "Confirmed Threat (High)";
-    </script>
+    <script src="block.js"></script>
 </body>
 </html>

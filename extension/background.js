@@ -1,15 +1,6 @@
-// Chrome Extension Background Service Worker (Manifest V3)
-// Real-time link interception and defensive URL inspection
-
 const API = 'http://127.0.0.1:5000/api/analyze';
 const pending = new Set();
 
-/**
- * Existing blocking function: temporarily redirects the tab to the warning page.
- * @param {number} tabId Target Chrome tab ID
- * @param {string} url The malicious or suspicious destination URL
- * @param {number|string} risk Calculated risk score or confidence
- */
 async function blockTab(tabId, url, risk = 100) {
   const target = chrome.runtime.getURL('block.html') + 
     '?url=' + encodeURIComponent(url) + 
@@ -31,13 +22,11 @@ async function checkTab(tabId, url) {
       await blockTab(tabId, url, data.risk_score);
     }
   } catch (_) {
-    // Backend offline or unreachable
   } finally {
     pending.delete(tabId);
   }
 }
 
-// Intercept navigation events
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const currentUrl = changeInfo.url || tab.url;
   if (currentUrl && /^https?:/i.test(currentUrl)) {
@@ -45,7 +34,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Runtime message listener for external or popup blocking triggers
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'block' && message.url) {
     const targetTabId = message.tabId || sender.tab?.id;
@@ -53,7 +41,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       blockTab(targetTabId, message.url, message.risk || 100).then(() => {
         sendResponse({ success: true });
       });
-      return true; // Keep message channel open for async response
+      return true;
     }
+  }
+
+  if (message.action === 'close_tab') {
+    const targetTabId = message.tabId || sender.tab?.id;
+    if (targetTabId) {
+      chrome.tabs.remove(targetTabId, () => sendResponse({ success: true }));
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs[0]?.id) {
+          chrome.tabs.remove(tabs[0].id);
+        }
+        sendResponse({ success: true });
+      });
+    }
+    return true;
+  }
+
+  if (message.action === 'navigate_safe') {
+    const targetTabId = message.tabId || sender.tab?.id;
+    const safeUrl = message.url || 'https://www.google.com';
+    if (targetTabId) {
+      chrome.tabs.update(targetTabId, { url: safeUrl }, () => sendResponse({ success: true }));
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs[0]?.id) {
+          chrome.tabs.update(tabs[0].id, { url: safeUrl });
+        }
+        sendResponse({ success: true });
+      });
+    }
+    return true;
   }
 });

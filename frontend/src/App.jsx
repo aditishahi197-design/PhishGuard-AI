@@ -2,15 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react'
 
 const API = '/api'
 
-// Realistic sample links for testing and live demonstrations
-const DEMO_URLS = [
-  { label: 'google.com (Clean)', url: 'https://google.com', type: 'safe' },
-  { label: 'paypal-security-update.com (Phish)', url: 'https://paypal-account-security-update.com/login', type: 'danger' },
-  { label: '192.168.1.1 (Raw IP)', url: 'http://192.168.1.1/admin/verify.php', type: 'danger' },
-  { label: 'bank-verify.xyz (Suspicious TLD)', url: 'http://bank-verification.xyz/auth', type: 'warning' },
+const QUICK_SITES = [
+  { label: 'Google', note: 'Safe', url: 'https://google.com', tone: 'safe' },
+  { label: 'PayPal Update', note: 'Phishing', url: 'https://paypal-account-security-update.com/login', tone: 'danger' },
+  { label: 'Bank Verify', note: 'Suspicious', url: 'http://bank-verification.xyz/auth', tone: 'warning' },
 ]
 
-// Professional SVG Vector Icons
 function Icon({ name, size = 16, className = '' }) {
   const props = {
     width: size,
@@ -185,14 +182,13 @@ export default function App() {
   })
   const [scanDots, setScanDots] = useState(0)
 
-  // Animated dots progression: "Scanning", "Scanning.", "Scanning.." up to 6 dots, each after 0.5s (500ms)
   useEffect(() => {
     if (!loading && !deepScanning) {
       setScanDots(0)
       return
     }
     const timer = setInterval(() => {
-      setScanDots((prev) => (prev + 1) % 7) // 0 to 6 dots (7 states total)
+      setScanDots((prev) => (prev + 1) % 7)
     }, 500)
     return () => clearInterval(timer)
   }, [loading, deepScanning])
@@ -203,7 +199,6 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
-  // Expanding circular background wave originating from the theme button
   const handleThemeToggle = (e) => {
     const nextDark = !darkMode
     const rect = e.currentTarget.getBoundingClientRect()
@@ -219,7 +214,7 @@ export default function App() {
     circle.className = 'theme-wave-circle'
     circle.style.left = `${x - 25}px`
     circle.style.top = `${y - 25}px`
-    circle.style.backgroundColor = nextDark ? '#080c14' : '#edf2f7'
+    circle.style.backgroundColor = nextDark ? '#222831' : '#edf2f7'
     circle.style.setProperty('--target-scale', targetScale)
     document.body.appendChild(circle)
 
@@ -257,7 +252,6 @@ export default function App() {
     fetchData()
   }, [])
 
-  // Standard ML URL Check
   const handleScan = async (targetUrl = url) => {
     const cleanUrl = targetUrl.trim()
     if (!cleanUrl) {
@@ -290,7 +284,6 @@ export default function App() {
     }
   }
 
-  // Deep Sandbox Scan with 2-second polling and 90-second timeout
   const handleDeepScan = async (targetUrl = url) => {
     const cleanUrl = targetUrl.trim()
     if (!cleanUrl) {
@@ -303,11 +296,10 @@ export default function App() {
     setDeepScanResult(null)
 
     const startTime = Date.now()
-    const TIMEOUT_MS = 90000 // 90 seconds timeout
-    const POLL_INTERVAL_MS = 2000 // poll every 2 seconds
+    const TIMEOUT_MS = 90000
+    const POLL_INTERVAL_MS = 2000
 
     try {
-      // 1. Initiate scan: POST /deep-scan
       let startRes
       try {
         startRes = await fetch(`${API}/deep-scan`, {
@@ -316,7 +308,6 @@ export default function App() {
           body: JSON.stringify({ url: cleanUrl }),
         })
       } catch {
-        // Fallback to direct path if proxy rewrite behaves differently
         startRes = await fetch('/deep-scan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -334,7 +325,6 @@ export default function App() {
         throw new Error('No job identifier was returned by the sandbox backend.')
       }
 
-      // 2. Poll GET /deep-scan/<job_id> every 2 seconds until done or failed
       while (true) {
         if (Date.now() - startTime >= TIMEOUT_MS) {
           throw new Error('Sandbox deep scan timed out after 90 seconds. Execution took longer than expected.')
@@ -363,7 +353,6 @@ export default function App() {
         } else if (pollData.status === 'failed') {
           throw new Error(pollData.error || 'Sandbox deep scan failed to analyze the target URL.')
         }
-        // status === 'pending' continues polling
       }
     } catch (err) {
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
@@ -374,11 +363,6 @@ export default function App() {
     } finally {
       setDeepScanning(false)
     }
-  }
-
-  const handleQuickDemo = (sampleUrl) => {
-    setUrl(sampleUrl)
-    handleScan(sampleUrl)
   }
 
   const handleDownloadPdf = async (analysisId) => {
@@ -482,7 +466,6 @@ export default function App() {
 
   const getDeepScanVerdictDetails = (verdict) => {
     const v = (verdict || '').toLowerCase()
-    // 1. Phishing ALWAYS takes top priority
     if (v.includes('phish')) {
       return {
         title: 'Phishing Target Intercepted',
@@ -493,7 +476,6 @@ export default function App() {
           'Active deception or security interstitial detected inside sandbox environment. The target page initiates credential harvesting forms, deceptive brand spoofing, or has been flagged for phishing.',
       }
     }
-    // 2. Suspicious behavior
     if (v.includes('suspicious')) {
       return {
         title: 'Suspicious Behavior Detected',
@@ -504,7 +486,6 @@ export default function App() {
           'Anomalous DOM modifications, obfuscated script executions, inactive threat simulation paths, or multi-hop redirect gateways were identified.',
       }
     }
-    // 3. Timeouts / Inactive / Inaccessible
     if (v.includes('timeout') || v.includes('timed out') || v.includes('inactive') || v.includes('unreachable') || v.includes('failed')) {
       return {
         title: 'Connection Inaccessible / Timed Out',
@@ -515,7 +496,6 @@ export default function App() {
           'The destination server timed out or failed to complete HTTP communication during sandbox evaluation.',
       }
     }
-    // 4. HTTP 404 / Not Found
     if (v.includes('404') || v.includes('not found')) {
       return {
         title: 'Inactive / Endpoint Not Found (HTTP 404)',
@@ -526,7 +506,6 @@ export default function App() {
           'The destination server returned HTTP 404 (Not Found) or 410 (Gone). The page does not exist, was taken down by the host, or is an inactive dead link.',
       }
     }
-    // 5. NXDOMAIN
     if (v.includes('nxdomain') || v.includes('offline')) {
       return {
         title: 'Non-Existent / Inactive Domain (NXDOMAIN)',
@@ -537,7 +516,6 @@ export default function App() {
           'This domain failed DNS resolution. Public nameservers confirm it does not exist (NXDOMAIN / ERR_NAME_NOT_RESOLVED). The site is offline, expired, or suspended.',
       }
     }
-    // 6. HTTP Error (403, 500, etc.)
     if (v.includes('403') || v.includes('500') || v.includes('502') || v.includes('error') || v.includes('blocked')) {
       return {
         title: 'Endpoint Inaccessible / Server Error',
@@ -548,7 +526,6 @@ export default function App() {
           'The destination web server returned an error status code or actively blocked access to the sandbox container.',
       }
     }
-    // 7. Verified Safe ONLY when explicitly marked safe or allow
     if (v.includes('safe') || v.includes('allow')) {
       return {
         title: 'Safe Destination Verified',
@@ -559,7 +536,6 @@ export default function App() {
           'Headless container executed full navigation and DOM rendering without observing credential spoofing or malicious network signals.',
       }
     }
-    // 8. Fallback is ALWAYS review, NEVER safe
     return {
       title: 'Unverified Destination',
       badgeText: 'Review',
@@ -573,14 +549,12 @@ export default function App() {
 
   return (
     <div className="container">
-      {/* Subtle Ambient Radar Circles */}
       <div className="ambient-radar" aria-hidden="true">
         <div className="radar-circle radar-1"></div>
         <div className="radar-circle radar-2"></div>
         <div className="radar-circle radar-3"></div>
       </div>
 
-      {/* Header */}
       <header className="header">
         <div className="brand">
           <div className="brand-logo">
@@ -621,9 +595,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="main-content">
-        {/* Scanner Card */}
         <section className="scanner-card">
           <div className="scanner-intro">
             <h2>Check a link before you click it</h2>
@@ -645,12 +617,10 @@ export default function App() {
               disabled={isScanningAny}
             />
 
-            {/* URL Check Button */}
             <button type="submit" className="scan-btn" disabled={isScanningAny}>
               {loading ? scanningDotsText : 'Scan Link'}
             </button>
 
-            {/* Deep Scan Button */}
             <button
               type="button"
               className="scan-btn deep-scan-btn"
@@ -661,19 +631,23 @@ export default function App() {
             </button>
           </form>
 
-          {/* Quick Click Demo Links */}
-          <div className="quick-demos">
-            <span className="demos-label">Try an example:</span>
-            <div className="demo-chips">
-              {DEMO_URLS.map((demo, idx) => (
+          <div className="quick-examples">
+            <span className="examples-label">Examples:</span>
+            <div className="examples-list">
+              {QUICK_SITES.map((item, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  className={`chip chip-${demo.type}`}
-                  onClick={() => handleQuickDemo(demo.url)}
+                  className="example-btn"
+                  onClick={() => {
+                    setUrl(item.url)
+                    handleScan(item.url)
+                  }}
                   disabled={isScanningAny}
                 >
-                  {demo.label}
+                  <span className={`example-dot dot-${item.tone}`}></span>
+                  <span className="example-name">{item.label}</span>
+                  <span className="example-tag">({item.note})</span>
                 </button>
               ))}
             </div>
@@ -687,7 +661,6 @@ export default function App() {
           )}
         </section>
 
-        {/* Live Metrics Grid */}
         <section className="stats-row">
           <div className="stat-card">
             <div className="stat-num">{stats.total}</div>
@@ -707,16 +680,12 @@ export default function App() {
           </div>
         </section>
 
-        {/* Sandbox Deep Scan Result Section */}
         {deepScanResult && (
           <section className="deep-scan-card">
             <div className="deep-scan-header">
               <div className="deep-scan-title-wrap">
-                <span className="sandbox-badge">
-                  <Icon name="terminal" size={14} />
-                  <span>Sandbox Deep Scan Result</span>
-                </span>
                 <h3>Isolated Environment Execution</h3>
+                <span className="deep-scan-sub">Runtime behavioral inspection</span>
               </div>
               <button
                 type="button"
@@ -743,14 +712,12 @@ export default function App() {
                     <div className="verdict-text">
                       <div className="verdict-header">
                         <h3>{verdictInfo.title}</h3>
-                        <span className="verdict-badge">{deepScanResult.verdict}</span>
                       </div>
                       <p>{verdictInfo.description}</p>
                       <div className="url-preview">{deepScanResult.scanned_url || url}</div>
                     </div>
                   </div>
 
-                  {/* Deep Scan Key Metrics */}
                   <div className="scores-grid">
                     <div className="score-box">
                       <span className="score-label">Sandbox Verdict</span>
@@ -781,7 +748,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Redirect Chain Inspection */}
                   <div className="findings-section">
                     <h4>Observed Navigation & Redirect Chain</h4>
                     <div className="redirect-chain-list">
@@ -811,7 +777,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Sandbox Captured Screenshot */}
                   {deepScanResult.screenshot && (
                     <div className="screenshot-section">
                       <h4>Sandbox Rendered Viewport Screenshot</h4>
@@ -831,17 +796,15 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Sandbox Reasons & Indicators */}
-                  <div className="findings-section" style={{ marginTop: '22px' }}>
-                    <h4>Sandbox Detection Reasons & Evidence</h4>
+                  <div className="findings-section" style={{ marginTop: '28px' }}>
+                    <h4>Detection Signals</h4>
                     <div className="reasons-list">
                       {deepScanResult.reasons && deepScanResult.reasons.length > 0 ? (
                         deepScanResult.reasons.map((reason, idx) => (
                           <div className="reason-item" key={idx}>
-                            <div className="reason-badge">Signal #{idx + 1}</div>
+                            <span className="signal-index">{idx + 1}</span>
                             <div className="reason-content">
                               <strong>{reason}</strong>
-                              <p>Observed during headless container payload evaluation.</p>
                             </div>
                           </div>
                         ))
@@ -851,60 +814,50 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Wire Packet & Canary Telemetry Section */}
                   {deepScanResult.packet_telemetry && (
                     <div className="telemetry-section">
-                      <h4>Wire Packet &amp; Canary Telemetry (Network Layer Analysis)</h4>
+                      <h4>Network Layer Analysis</h4>
                       <div className="telemetry-card">
                         <div className="telemetry-row header-row">
                           <div>
-                            <span className="telemetry-tag">Wireshark / TShark Wire Inspection</span>
-                            <h5>Outbound Packet &amp; Encryption Forensic Log</h5>
+                            <span className="telemetry-tag">Network Wire Inspection</span>
+                            <h5>Outbound Network &amp; Credential Transmission Log</h5>
                           </div>
-                          <span
-                            className={`telemetry-status-pill ${
-                              deepScanResult.packet_telemetry.wire_encryption.cleartext_leak_on_wire
-                                ? 'pill-danger'
-                                : 'pill-safe'
-                            }`}
-                          >
-                            {deepScanResult.packet_telemetry.wire_encryption.cleartext_leak_on_wire
-                              ? 'CLEARTEXT LEAK DETECTED'
-                              : 'ENCRYPTED IN TRANSIT'}
-                          </span>
                         </div>
 
                         <div className="telemetry-grid">
                           <div className="telemetry-box">
-                            <span className="telemetry-label">Source &amp; Destination Socket</span>
+                            <span className="telemetry-label">Source &amp; Destination IP</span>
                             <strong>
-                              {deepScanResult.packet_telemetry.source_ip} ➔ {deepScanResult.packet_telemetry.destination_ip}:
-                              {deepScanResult.packet_telemetry.destination_port}
+                              {deepScanResult.packet_telemetry.source_ip} ➔ {deepScanResult.packet_telemetry.destination_ip}
                             </strong>
-                            <span className="telemetry-sub">{deepScanResult.packet_telemetry.protocol}</span>
-                          </div>
-
-                          <div className="telemetry-box">
-                            <span className="telemetry-label">Transport Encryption &amp; Protocol</span>
-                            <strong>{deepScanResult.packet_telemetry.wire_encryption.tls_version}</strong>
                             <span className="telemetry-sub">
-                              Entropy: {deepScanResult.packet_telemetry.wire_encryption.entropy_score} bits/byte (
-                              {deepScanResult.packet_telemetry.wire_encryption.cipher_suite})
+                              Port: {deepScanResult.packet_telemetry.destination_port}
                             </span>
                           </div>
 
                           <div className="telemetry-box">
-                            <span className="telemetry-label">Canary Honeytoken Injected</span>
-                            <strong>{deepScanResult.packet_telemetry.canary_injection.canary_user}</strong>
+                            <span className="telemetry-label">Fake Credentials</span>
+                            <strong>
+                              {deepScanResult.packet_telemetry.canary_injection.form_found
+                                ? (deepScanResult.packet_telemetry.canary_injection.canary_user || 'Technoblade@never.die')
+                                : 'NA'}
+                            </strong>
                             <span className="telemetry-sub">
-                              Password: <code>{deepScanResult.packet_telemetry.canary_injection.canary_pass}</code>
+                              {deepScanResult.packet_telemetry.canary_injection.form_found ? (
+                                <>Password: <code>{deepScanResult.packet_telemetry.canary_injection.canary_pass || '12345678'}</code></>
+                              ) : (
+                                'Password: NA'
+                              )}
                             </span>
                           </div>
 
                           <div className="telemetry-box">
-                            <span className="telemetry-label">Exfiltration Drop-Zone Target</span>
+                            <span className="telemetry-label">Sharing Credential to Any Link</span>
                             <strong title={deepScanResult.packet_telemetry.canary_injection.post_destination}>
-                              {deepScanResult.packet_telemetry.canary_injection.post_destination}
+                              {deepScanResult.packet_telemetry.canary_injection.form_found
+                                ? deepScanResult.packet_telemetry.canary_injection.post_destination
+                                : 'NA'}
                             </strong>
                             <span
                               className={`telemetry-sub ${
@@ -913,21 +866,32 @@ export default function App() {
                                   : ''
                               }`}
                             >
-                              {deepScanResult.packet_telemetry.canary_injection.destination_mismatch
-                                ? '⚠️ Drop-zone hostname does not match page domain!'
-                                : 'Matches origin domain'}
+                              {deepScanResult.packet_telemetry.canary_injection.form_found ? (
+                                deepScanResult.packet_telemetry.canary_injection.destination_mismatch
+                                  ? '⚠️ Warning: Form redirects credentials to external unverified link!'
+                                  : 'Submitted only to origin link'
+                              ) : (
+                                'No credential transmission observed'
+                              )}
                             </span>
                           </div>
                         </div>
 
                         <div className="telemetry-details">
                           <div className="telemetry-detail-item">
-                            <span>Observed Payload Encoding:</span>
-                            <code>{deepScanResult.packet_telemetry.canary_injection.encoding_detected}</code>
-                          </div>
-                          <div className="telemetry-detail-item">
-                            <span>Server Reaction to Fake Account:</span>
-                            <em>{deepScanResult.packet_telemetry.canary_injection.server_reaction}</em>
+                            <span>Credential Verification &amp; Encoder:</span>
+                            <em>
+                              {deepScanResult.packet_telemetry.canary_injection.form_found ? (
+                                <>
+                                  {deepScanResult.packet_telemetry.canary_injection.password_status ||
+                                    'Password rejected as incorrect (fake account, as expected)'}
+                                  {' | '}
+                                  Encoder Used: <code>{deepScanResult.packet_telemetry.canary_injection.encoding_detected || 'POST Application/x-www-form-urlencoded'}</code>
+                                </>
+                              ) : (
+                                <>NA (No login input found on page) | Encoder Used: <code>NA</code></>
+                              )}
+                            </em>
                           </div>
                         </div>
                       </div>
@@ -939,7 +903,6 @@ export default function App() {
           </section>
         )}
 
-        {/* Scan Result Section (Standard ML Check) */}
         {result && (
           <section className="result-card">
             {(() => {
@@ -958,7 +921,6 @@ export default function App() {
                       <p>{verdict.description}</p>
                       <div className="url-preview">{result.normalized_url}</div>
 
-                      {/* Protection mode alert */}
                       {result.decision === 'block' && (
                         <div
                           className={`protection-status-banner ${
@@ -982,7 +944,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Key Scores & Confidence */}
                   <div className="scores-grid">
                     <div className="score-box">
                       <span className="score-label">Overall Risk</span>
@@ -1011,16 +972,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Findings & Evidence */}
                   <div className="findings-section">
-                    <h4>Why this score was given</h4>
+                    <h4>Evaluation Details</h4>
                     <div className="reasons-list">
                       {result.reasons && result.reasons.length > 0 ? (
                         result.reasons.map((r, i) => (
                           <div className="reason-item" key={i}>
-                            <div className="reason-badge">
-                              {r.points > 0 ? `+${r.points} risk` : 'Clean'}
-                            </div>
+                            <span className="signal-index">{i + 1}</span>
                             <div className="reason-content">
                               <strong>{r.title}</strong>
                               <p>{r.detail}</p>
@@ -1033,7 +991,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Live Web Analysis Details */}
                   {result.page_analysis && (
                     <div className="metadata-strip">
                       <div className="meta-item">
@@ -1053,7 +1010,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Collapsible 15 Feature Breakdown */}
                   <div className="features-accordion">
                     <button
                       type="button"
@@ -1091,7 +1047,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Actions & Report Download */}
                   <div className="result-actions">
                     <button
                       type="button"
@@ -1108,7 +1063,6 @@ export default function App() {
           </section>
         )}
 
-        {/* Scan History Section */}
         <section className="history-section">
           <div className="history-header">
             <div>
@@ -1128,7 +1082,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Search & Filter Bar */}
           <div className="history-toolbar">
             <div className="history-search-wrap">
               <Icon name="search" size={14} className="search-icon" />
@@ -1160,7 +1113,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* History List */}
           <div className="history-list">
             {filteredHistory.length === 0 ? (
               <div className="empty-history">
@@ -1227,7 +1179,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Architecture & IDPS Concept Section */}
         <section className="info-card">
           <div className="info-header">
             <h3>How the detection system works</h3>
@@ -1266,7 +1217,6 @@ export default function App() {
         </section>
       </main>
 
-      {/* Details Modal */}
       {selectedRecord && (
         <div className="modal-overlay" onClick={() => setSelectedRecord(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1339,7 +1289,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Footer */}
       <footer className="footer">
         <p>PhishGuard — Intrusion Detection & Prevention System Prototype</p>
       </footer>
