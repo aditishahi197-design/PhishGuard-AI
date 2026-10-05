@@ -537,6 +537,17 @@ def run_sandbox_scan(job_id, url):
                 "result": result_payload
             }
 
+        try:
+            conn = db()
+            conn.execute("""INSERT INTO sandbox_scans(job_id, url, verdict, confidence, reasons_json, result_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(job_id) DO UPDATE SET verdict = excluded.verdict, confidence = excluded.confidence, reasons_json = excluded.reasons_json, result_json = excluded.result_json""",
+                (job_id, normalized, result_payload.get("verdict", "Unknown"), float(result_payload.get("confidence", 0)), json.dumps(result_payload.get("reasons", [])), json.dumps(result_payload), result_payload.get("completed_at", datetime.now(timezone.utc).isoformat())))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
     except Exception as exc:
         with deep_scan_lock:
             deep_scan_jobs[job_id] = {
@@ -625,7 +636,21 @@ def init_db():
         created_at TEXT NOT NULL,
         FOREIGN KEY(analysis_id) REFERENCES analyses(id)
     );
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sandbox_scans (
+        job_id TEXT PRIMARY KEY,
+        url TEXT NOT NULL,
+        verdict TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        reasons_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
     """)
+    conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('interception_active', '1')")
     
     cols = {r[1] for r in conn.execute("PRAGMA table_info(analyses)").fetchall()}
     if "trusted_match_json" not in cols:
@@ -637,6 +662,26 @@ def init_db():
     if "confidence" not in cols:
         conn.execute("ALTER TABLE analyses ADD COLUMN confidence REAL NOT NULL DEFAULT 0")
     conn.commit(); conn.close()
+
+
+def get_setting(key, default="1"):
+    try:
+        conn = db()
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        conn.close()
+        return row["value"] if row else default
+    except Exception:
+        return default
+
+
+def set_setting(key, value):
+    try:
+        conn = db()
+        conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, str(value)))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 def model_probability(features):
@@ -760,6 +805,22 @@ def health():
     return jsonify({"ok": True, "model_loaded": _model is not None, "registry_loaded": bool(registry), "registry_count": len(registry), "feature_count": len(FEATURE_ORDER), "features": FEATURE_ORDER})
 
 
+@app.get("/api/settings")
+def api_get_settings():
+    val = get_setting("interception_active", "1")
+    return jsonify({"interception_active": val in ("1", "true", "True")})
+
+
+@app.post("/api/settings")
+def api_set_settings():
+    body = request.get_json(silent=True) or {}
+    if "interception_active" in body:
+        is_active = bool(body["interception_active"])
+        set_setting("interception_active", "1" if is_active else "0")
+        return jsonify({"ok": True, "interception_active": is_active})
+    return jsonify({"error": "Invalid settings payload"}), 400
+
+
 @app.post("/api/analyze")
 def api_analyze():
     body = request.get_json(silent=True) or {}
@@ -768,6 +829,8 @@ def api_analyze():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     created = datetime.now(timezone.utc).isoformat()
+    val = get_setting("interception_active", "1")
+    result["interception_active"] = (val in ("1", "true", "True"))
     conn = db()
     cur = conn.execute("""INSERT INTO analyses(url, normalized_url, model_probability, heuristic_score, risk_score, decision, label, reasons_json, features_json, trusted_match_json, intelligence_json, page_analysis_json, confidence, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (result["url"], result["normalized_url"], result["model_probability"], result["heuristic_score"], result["risk_score"], result["decision"], result["label"], json.dumps(result["reasons"]), json.dumps(result["features"]), json.dumps(result["trusted_domain"]) if result["trusted_domain"] else None, json.dumps(result["intelligence"]), json.dumps(result["page_analysis"]), result["confidence"], created))
@@ -832,23 +895,47 @@ def api_start_deep_scan():
 @app.get("/deep-scan/<job_id>")
 @app.get("/api/deep-scan/<job_id>")
 def api_get_deep_scan(job_id):
-    """
-    Returns {"status": "pending|done|failed", "result": {...}} for a given job_id.
-    """
     with deep_scan_lock:
         job = deep_scan_jobs.get(job_id)
 
-    if not job:
-        return jsonify({"error": "Scan job not found."}), 404
+    val = get_setting("interception_active", "1")
+    if job:
+        payload = {
+            "status": job["status"],
+            "result": job.get("result"),
+            "interception_active": (val in ("1", "true", "True"))
+        }
+        if job.get("error"):
+            payload["error"] = job["error"]
+        return jsonify(payload)
 
-    payload = {
-        "status": job["status"],
-        "result": job.get("result")
-    }
-    if job.get("error"):
-        payload["error"] = job["error"]
+    conn = db()
+    row = conn.execute("SELECT * FROM sandbox_scans WHERE job_id = ?", (job_id,)).fetchone()
+    conn.close()
+    if row:
+        return jsonify({
+            "status": "done",
+            "result": json.loads(row["result_json"]),
+            "interception_active": (val in ("1", "true", "True"))
+        })
 
-    return jsonify(payload)
+    return jsonify({"error": "Scan job not found."}), 404
+
+
+@app.get("/api/sandbox-history")
+def api_sandbox_history():
+    try: limit = min(max(int(request.args.get("limit", 100)), 1), 500)
+    except ValueError: limit = 100
+    conn = db()
+    rows = conn.execute("SELECT job_id, url, verdict, confidence, created_at FROM sandbox_scans ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return jsonify([{
+        "job_id": r["job_id"],
+        "url": r["url"],
+        "verdict": r["verdict"],
+        "confidence": r["confidence"],
+        "created_at": r["created_at"]
+    } for r in rows])
 
 
 @app.get("/api/history")

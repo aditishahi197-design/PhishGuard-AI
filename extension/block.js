@@ -69,4 +69,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  const proceedBtn = document.getElementById('btn-proceed');
+  if (proceedBtn) {
+    proceedBtn.addEventListener('click', () => {
+      const params = new URLSearchParams(window.location.search);
+      const targetUrl = params.get('url');
+      if (targetUrl && /^https?:/i.test(targetUrl)) {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ action: 'set_interception', interception_active: false }, () => {
+            window.location.href = targetUrl;
+          });
+        } else {
+          window.location.href = targetUrl;
+        }
+      }
+    });
+  }
 });

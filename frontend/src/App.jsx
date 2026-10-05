@@ -171,6 +171,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [deepScanning, setDeepScanning] = useState(false)
   const [deepScanResult, setDeepScanResult] = useState(null)
+  const [sandboxHistory, setSandboxHistory] = useState([])
   const [protectionEnabled, setProtectionEnabled] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
@@ -235,17 +236,40 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [historyRes, statsRes] = await Promise.all([
+      const [historyRes, statsRes, settingsRes, sandboxRes] = await Promise.all([
         fetch(`${API}/history`),
         fetch(`${API}/stats`),
+        fetch(`${API}/settings`).catch(() => null),
+        fetch(`${API}/sandbox-history`).catch(() => null),
       ])
 
       if (historyRes.ok) setHistory(await historyRes.json())
       if (statsRes.ok) setStats(await statsRes.json())
+      if (settingsRes && settingsRes.ok) {
+        const settingsData = await settingsRes.json()
+        if (typeof settingsData.interception_active === 'boolean') {
+          setProtectionEnabled(settingsData.interception_active)
+        }
+      }
+      if (sandboxRes && sandboxRes.ok) {
+        setSandboxHistory(await sandboxRes.json())
+      }
       setError('')
     } catch {
       setError('Backend server is currently unreachable. Make sure python app.py is running on port 5000.')
     }
+  }
+
+  const handleToggleInterception = async () => {
+    const nextVal = !protectionEnabled
+    setProtectionEnabled(nextVal)
+    try {
+      await fetch(`${API}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interception_active: nextVal }),
+      })
+    } catch (_) {}
   }
 
   useEffect(() => {
@@ -259,6 +283,7 @@ export default function App() {
       return
     }
 
+    setDeepScanResult(null)
     setLoading(true)
     setError('')
 
@@ -274,7 +299,11 @@ export default function App() {
         throw new Error(data.error || 'Analysis could not be completed.')
       }
 
+      setDeepScanResult(null)
       setResult(data)
+      if (typeof data.interception_active === 'boolean') {
+        setProtectionEnabled(data.interception_active)
+      }
       setUrl(cleanUrl)
       fetchData()
     } catch (err) {
@@ -291,9 +320,10 @@ export default function App() {
       return
     }
 
+    setResult(null)
+    setDeepScanResult(null)
     setDeepScanning(true)
     setError('')
-    setDeepScanResult(null)
 
     const startTime = Date.now()
     const TIMEOUT_MS = 90000
@@ -347,8 +377,10 @@ export default function App() {
         const pollData = await pollRes.json()
 
         if (pollData.status === 'done') {
+          setResult(null)
           setDeepScanResult(pollData.result)
           setUrl(cleanUrl)
+          fetchData()
           break
         } else if (pollData.status === 'failed') {
           throw new Error(pollData.error || 'Sandbox deep scan failed to analyze the target URL.')
@@ -392,7 +424,27 @@ export default function App() {
       const res = await fetch(`${API}/history/${id}`)
       if (!res.ok) throw new Error('Could not load record details.')
       const data = await res.json()
+      setDeepScanResult(null)
+      setResult(data)
       setSelectedRecord(data)
+      setUrl(data.normalized_url || data.url || '')
+      window.scrollTo({ top: 380, behavior: 'smooth' })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleInspectSandbox = async (jobId) => {
+    try {
+      const res = await fetch(`${API}/deep-scan/${jobId}`)
+      if (!res.ok) throw new Error('Could not load sandbox scan details.')
+      const data = await res.json()
+      if (data.result) {
+        setResult(null)
+        setDeepScanResult(data.result)
+        setUrl(data.result.scanned_url || '')
+        window.scrollTo({ top: 380, behavior: 'smooth' })
+      }
     } catch (err) {
       setError(err.message)
     }
@@ -588,7 +640,7 @@ export default function App() {
           <button
             type="button"
             className={`toggle-btn ${protectionEnabled ? 'active' : ''}`}
-            onClick={() => setProtectionEnabled(!protectionEnabled)}
+            onClick={handleToggleInterception}
           >
             Interception: <strong>{protectionEnabled ? 'Active' : 'Disabled'}</strong>
           </button>
@@ -680,7 +732,7 @@ export default function App() {
           </div>
         </section>
 
-        {deepScanResult && (
+        {deepScanResult ? (
           <section className="deep-scan-card">
             <div className="deep-scan-header">
               <div className="deep-scan-title-wrap">
@@ -901,10 +953,18 @@ export default function App() {
               )
             })()}
           </section>
-        )}
-
-        {result && (
+        ) : result ? (
           <section className="result-card">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setResult(null)}
+                aria-label="Dismiss scan results"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
             {(() => {
               const verdict = getVerdictDetails(result.decision)
               return (
@@ -1061,7 +1121,7 @@ export default function App() {
               )
             })()}
           </section>
-        )}
+        ) : null}
 
         <section className="history-section">
           <div className="history-header">
@@ -1167,6 +1227,84 @@ export default function App() {
                               onClick={() => handleDownloadPdf(item.id)}
                             >
                               PDF
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="history-section">
+          <div className="history-header">
+            <div>
+              <h3>Sandbox Execution Results</h3>
+              <p>Previous isolated browser detonations, canary credentials injection, and telemetry traces.</p>
+            </div>
+
+            <div className="history-buttons">
+              <button type="button" className="btn-secondary" onClick={fetchData}>
+                <Icon name="refresh" size={14} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="history-list">
+            {sandboxHistory.length === 0 ? (
+              <div className="empty-history">
+                <p>No sandbox executions recorded yet. Run a Deep Scan above to execute a link in the sandbox.</p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="custom-table">
+                  <thead>
+                    <tr>
+                      <th>Verdict</th>
+                      <th>Scanned URL</th>
+                      <th>Confidence</th>
+                      <th>Time</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sandboxHistory.map((item) => (
+                      <tr key={item.job_id}>
+                        <td>
+                          <span className={`status-pill ${
+                            item.verdict === 'Phishing'
+                              ? 'pill-block'
+                              : (item.verdict.startsWith('Suspicious') ? 'pill-review' : 'pill-allow')
+                          }`}>
+                            {item.verdict.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="url-cell" title={item.url}>
+                          {item.url}
+                        </td>
+                        <td>
+                          <strong>{Math.round((item.confidence || 0) * 100)}%</strong>
+                        </td>
+                        <td className="date-cell">
+                          {new Date(item.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="btn-table"
+                              onClick={() => handleInspectSandbox(item.job_id)}
+                            >
+                              Inspect
                             </button>
                           </div>
                         </td>
